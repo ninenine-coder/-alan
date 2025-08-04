@@ -7,6 +7,10 @@ import 'pet_page.dart';
 import 'store_page.dart';
 import 'challenge_page.dart';
 import 'medal_page.dart';
+import 'coin_display.dart';
+import 'welcome_coin_animation.dart';
+import 'coin_service.dart';
+import 'user_service.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -23,17 +27,65 @@ class _ChatPageState extends State<ChatPage> {
   bool _isTyping = false;
   bool _showMenu = false;
 
-  String _aiName = '冬冬'; // AI 桌寵名稱，初始值
+  String _aiName = '傑米'; // AI 桌寵名稱，初始值
+  final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
+  bool _showWelcomeAnimation = false;
+  User? _currentUser;
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    _currentUser = await UserService.getCurrentUser();
+    if (_currentUser != null) {
+      await _loadMessages();
+      await _loadAiName();
+      await _checkFirstLogin();
+    }
+  }
+
+  Future<void> _checkFirstLogin() async {
+    if (_currentUser == null) return;
+    
+    final isFirstLogin = await UserService.isUserFirstLogin(_currentUser!.username);
+    if (isFirstLogin) {
+      setState(() {
+        _showWelcomeAnimation = true;
+      });
+    }
+  }
+
+  Future<void> _onWelcomeAnimationComplete() async {
+    // 贈送500金幣
+    await CoinService.addCoins(500);
+    // 標記已登入
+    await UserService.markUserAsLoggedIn(_currentUser!.username);
+    // 刷新金幣顯示
+    _coinDisplayKey.currentState?.refreshCoins();
+    // 隱藏動畫
+    setState(() {
+      _showWelcomeAnimation = false;
+    });
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // 當頁面重新獲得焦點時刷新金幣顯示
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _coinDisplayKey.currentState?.refreshCoins();
+    });
   }
 
   Future<void> _loadMessages() async {
+    if (_currentUser == null) return;
+    
     final prefs = await SharedPreferences.getInstance();
-    final savedMessages = prefs.getStringList('chat_messages') ?? [];
+    final messagesKey = UserService.getChatMessagesKey(_currentUser!.username);
+    final savedMessages = prefs.getStringList(messagesKey) ?? [];
     for (var jsonString in savedMessages) {
       final message = ChatMessage.fromJson(jsonDecode(jsonString));
       _messages.add(message);
@@ -43,9 +95,12 @@ class _ChatPageState extends State<ChatPage> {
   }
 
   Future<void> _saveMessages() async {
+    if (_currentUser == null) return;
+    
     final prefs = await SharedPreferences.getInstance();
+    final messagesKey = UserService.getChatMessagesKey(_currentUser!.username);
     final jsonMessages = _messages.map((m) => jsonEncode(m.toJson())).toList();
-    await prefs.setStringList('chat_messages', jsonMessages);
+    await prefs.setStringList(messagesKey, jsonMessages);
   }
 
   Future<void> _sendMessage(String text) async {
@@ -79,8 +134,11 @@ class _ChatPageState extends State<ChatPage> {
     setState(() {
       _messages.clear();
     });
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('chat_messages');
+    if (_currentUser != null) {
+      final prefs = await SharedPreferences.getInstance();
+      final messagesKey = UserService.getChatMessagesKey(_currentUser!.username);
+      await prefs.remove(messagesKey);
+    }
   }
 
   void _scrollToBottom() {
@@ -91,6 +149,25 @@ class _ChatPageState extends State<ChatPage> {
         curve: Curves.easeOut,
       );
     });
+  }
+
+  Future<void> _loadAiName() async {
+    if (_currentUser == null) return;
+    
+    final prefs = await SharedPreferences.getInstance();
+    final aiNameKey = UserService.getAiNameKey(_currentUser!.username);
+    final savedName = prefs.getString(aiNameKey) ?? '傑米';
+    setState(() {
+      _aiName = savedName;
+    });
+  }
+
+  Future<void> _saveAiName(String name) async {
+    if (_currentUser == null) return;
+    
+    final prefs = await SharedPreferences.getInstance();
+    final aiNameKey = UserService.getAiNameKey(_currentUser!.username);
+    await prefs.setString(aiNameKey, name);
   }
 
   Widget _buildMessage(ChatMessage message) {
@@ -225,25 +302,37 @@ class _ChatPageState extends State<ChatPage> {
             if (newName != null && newName is String) {
               setState(() {
                 _aiName = newName;
+                _saveAiName(newName); // 保存新名稱
               });
             }
+            // 刷新金幣顯示
+            _coinDisplayKey.currentState?.refreshCoins();
           });
         } else if (label == '商城') {
-        Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const StorePage()),
-      );
-      }else if (label == '挑戰任務') {
-        Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const ChallengePage()),
-      );
-      }else if (label == '勳章') {
-        Navigator.push(
-          context,
-          MaterialPageRoute(builder: (context) => const MedalPage()),
-        );
-      } else {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const StorePage()),
+          ).then((_) {
+            // 從商城返回時刷新金幣顯示
+            _coinDisplayKey.currentState?.refreshCoins();
+          });
+        } else if (label == '挑戰任務') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const ChallengePage()),
+          ).then((_) {
+            // 從挑戰任務返回時刷新金幣顯示
+            _coinDisplayKey.currentState?.refreshCoins();
+          });
+        } else if (label == '勳章') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const MedalPage()),
+          ).then((_) {
+            // 從勳章頁面返回時刷新金幣顯示
+            _coinDisplayKey.currentState?.refreshCoins();
+          });
+        } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('$label 功能尚未實作'),
@@ -271,15 +360,23 @@ class _ChatPageState extends State<ChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (_currentUser == null) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('捷米小助手'),
+        title: Text(_aiName),
+        elevation: 0,
+        backgroundColor: Colors.blue.shade600,
+        foregroundColor: Colors.white,
         actions: [
-          IconButton(
-            icon: const Icon(Icons.delete),
-            onPressed: _clearMessages,
-            tooltip: '清除聊天紀錄',
-          ),
+          CoinDisplay(key: _coinDisplayKey),
+          const SizedBox(width: 16),
         ],
       ),
       body: Stack(
@@ -315,6 +412,12 @@ class _ChatPageState extends State<ChatPage> {
               _buildInputArea(),
             ],
           ),
+          // 首次登入歡迎動畫
+          if (_showWelcomeAnimation)
+            WelcomeCoinAnimation(
+              onAnimationComplete: _onWelcomeAnimationComplete,
+              targetPosition: const Offset(1.0, -1.0), // 右上角位置
+            ),
         ],
       ),
     );

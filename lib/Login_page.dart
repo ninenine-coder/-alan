@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'chat_page.dart';
+import 'register_page.dart';
+import 'welcome_page.dart';
+import 'user_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -12,18 +15,28 @@ class _LoginPageState extends State<LoginPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
-  final String correctUsername = 'user';
-  final String correctPassword = '1234';
-
-  void _login() {
-    final username = _usernameController.text;
-    final password = _passwordController.text;
-
-    if (username == correctUsername && password == correctPassword) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => const ChatPage()),
-      );
+  void _login() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
+    final success = await UserService.loginUser(username, password);
+    if (success) {
+      if (mounted) {
+        // 檢查是否為首次登入
+        final isFirstLogin = await UserService.isUserFirstLogin(username);
+        if (isFirstLogin) {
+          // 首次登入跳轉到歡迎頁面
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const WelcomePage()),
+          );
+        } else {
+          // 非首次登入直接跳轉到聊天頁面
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const ChatPage()),
+          );
+        }
+      }
     } else {
       showDialog(
         context: context,
@@ -38,6 +51,20 @@ class _LoginPageState extends State<LoginPage> {
           ],
         ),
       );
+    }
+  }
+
+  void _goToRegister() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const RegisterPage()),
+    );
+    if (result == true) {
+      // 註冊成功自動填入帳號
+      setState(() {
+        _usernameController.text = '';
+        _passwordController.text = '';
+      });
     }
   }
 
@@ -70,7 +97,12 @@ class _LoginPageState extends State<LoginPage> {
             ElevatedButton(
               onPressed: _login,
               child: const Text('登入'),
-            )
+            ),
+            const SizedBox(height: 10),
+            TextButton(
+              onPressed: _goToRegister,
+              child: const Text('沒有帳號？前往註冊'),
+            ),
           ],
         ),
       ),

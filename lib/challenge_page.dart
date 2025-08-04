@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'coin_service.dart';
+import 'coin_display.dart';
 
 // Task 類別搬到外面
 class Task {
@@ -24,6 +26,7 @@ class ChallengePage extends StatefulWidget {
 
 class _ChallengePageState extends State<ChallengePage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
 
   // 每日任務清單
   final List<Task> dailyTasks = [
@@ -75,10 +78,51 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
     super.dispose();
   }
 
-  void _toggleTaskCompletion(List<Task> taskList, int index) {
+  Future<void> _toggleTaskCompletion(List<Task> taskList, int index) async {
+    final task = taskList[index];
+    final wasCompleted = task.completed;
+    
     setState(() {
-      taskList[index].completed = !taskList[index].completed;
+      task.completed = !task.completed;
     });
+
+    // 如果任務剛被完成（從未完成變為完成），給予金幣獎勵
+    if (!wasCompleted && task.completed) {
+      final coinAmount = _extractCoinAmount(task.reward);
+      if (coinAmount > 0) {
+        await CoinService.addCoins(coinAmount);
+        // 刷新金幣顯示
+        _coinDisplayKey.currentState?.refreshCoins();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.monetization_on, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('恭喜完成任務！獲得 $coinAmount 金幣'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
+  // 從獎勵文字中提取金幣數量
+  int _extractCoinAmount(String reward) {
+    final regex = RegExp(r'(\d+)\s*金幣');
+    final match = regex.firstMatch(reward);
+    if (match != null) {
+      return int.parse(match.group(1)!);
+    }
+    return 0;
   }
 
   Widget _buildTaskCard(Task task, int index, List<Task> taskList) {
@@ -125,6 +169,10 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
       appBar: AppBar(
         title: const Text('挑戰任務'),
         centerTitle: true,
+        actions: [
+          CoinDisplay(key: _coinDisplayKey),
+          const SizedBox(width: 16),
+        ],
         bottom: TabBar(
           controller: _tabController,
           tabs: const [

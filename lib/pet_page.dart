@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'coin_display.dart';
+import 'user_service.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -13,12 +16,34 @@ class _PetPageState extends State<PetPage> {
   late TextEditingController _controller;
   late String petName;
   double experience = 0.65; // 65% 經驗
+  final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
 
   @override
   void initState() {
     super.initState();
-    petName = widget.initialPetName;
-    _controller = TextEditingController(text: petName);
+    _loadPetName();
+  }
+
+  Future<void> _loadPetName() async {
+    final currentUser = await UserService.getCurrentUser();
+    if (currentUser == null) return;
+    
+    final prefs = await SharedPreferences.getInstance();
+    final aiNameKey = UserService.getAiNameKey(currentUser.username);
+    final savedName = prefs.getString(aiNameKey) ?? widget.initialPetName;
+    setState(() {
+      petName = savedName;
+      _controller = TextEditingController(text: petName);
+    });
+  }
+
+  Future<void> _savePetName(String name) async {
+    final currentUser = await UserService.getCurrentUser();
+    if (currentUser == null) return;
+    
+    final prefs = await SharedPreferences.getInstance();
+    final aiNameKey = UserService.getAiNameKey(currentUser.username);
+    await prefs.setString(aiNameKey, name);
   }
 
   @override
@@ -33,6 +58,10 @@ class _PetPageState extends State<PetPage> {
       appBar: AppBar(
         title: const Text('我的桌寵'),
         centerTitle: true,
+        actions: [
+          CoinDisplay(key: _coinDisplayKey),
+          const SizedBox(width: 16),
+        ],
       ),
       body: Column(
         children: [
@@ -90,9 +119,13 @@ class _PetPageState extends State<PetPage> {
                 const SizedBox(height: 10),
 
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     final newName = _controller.text.trim();
                     if (newName.isNotEmpty) {
+                      await _savePetName(newName); // 保存新名稱
+                      setState(() {
+                        petName = newName;
+                      });
                       Navigator.pop(context, newName); // 回傳新名字
                     } else {
                       Navigator.pop(context);

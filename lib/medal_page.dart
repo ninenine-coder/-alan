@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'coin_display.dart';
 
 class Medal {
   final String name;
@@ -22,6 +23,8 @@ class MedalPage extends StatefulWidget {
 }
 
 class _MedalPageState extends State<MedalPage> {
+  final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
+  
   // 模擬初始勳章資料
   final List<Medal> medals = List.generate(10, (index) {
     return Medal(
@@ -104,6 +107,10 @@ class _MedalPageState extends State<MedalPage> {
       appBar: AppBar(
         title: const Text('我的勳章'),
         centerTitle: true,
+        actions: [
+          CoinDisplay(key: _coinDisplayKey),
+          const SizedBox(width: 16),
+        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
