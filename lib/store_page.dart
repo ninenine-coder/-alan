@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
 import 'coin_service.dart';
 import 'coin_display.dart';
 import 'user_service.dart';
+import 'data_service.dart';
 
 class StorePage extends StatefulWidget {
   const StorePage({super.key});
@@ -26,62 +28,58 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
     '飼料': Icons.restaurant,
   };
 
-  // 模擬每類商品資料 (十個)
-  final Map<String, List<Map<String, dynamic>>> items = {};
+  // 從管理員系統載入的商品資料
+  final Map<String, List<StoreItem>> items = {};
   final Map<String, bool> purchasedItems = {};
-  User? _currentUser; // 記錄已購買的商品
+  User? _currentUser;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: categories.length, vsync: this);
+    print('StorePage initState called'); // 調試信息
     _loadUserData();
   }
 
   Future<void> _loadUserData() async {
+    print('Loading user data...'); // 調試信息
     _currentUser = await UserService.getCurrentUser();
+    print('Current user: ${_currentUser?.username ?? 'null'}'); // 調試信息
     await _loadPurchasedItems();
-    _generateItems();
+    await _loadStoreItems();
+    // 確保 UI 更新
+    setState(() {});
+    print('StorePage data loaded, items count: ${items.length}'); // 調試信息
   }
 
-  void _generateItems() {
-    for (var category in categories) {
-      items[category] = List.generate(10, (index) {
-        return {
-          'id': '$category-$index',
-          'name': '$category 項目${index + 1}',
-          'price': (index + 1) * 100,
-          'image': categoryIcons[category] ?? Icons.shopping_bag,
-          'description': '這是一個精美的${category}商品，讓您的體驗更加豐富！',
-          'rarity': index < 3 ? '稀有' : index < 7 ? '普通' : '常見',
-        };
-      });
+  Future<void> _loadStoreItems() async {
+    final allItems = await DataService.getStoreItems();
+    
+    // 清空現有資料
+    items.clear();
+    
+    // 按類別分組商品
+    for (final item in allItems) {
+      if (!items.containsKey(item.category)) {
+        items[item.category] = [];
+      }
+      items[item.category]!.add(item);
     }
+    
+    print('Loaded ${allItems.length} store items from admin system');
   }
 
   Future<void> _loadPurchasedItems() async {
     if (_currentUser == null) return;
     
-    final prefs = await SharedPreferences.getInstance();
-    final purchasedItemsKey = UserService.getPurchasedItemsKey(_currentUser!.username);
-    final purchasedItemsJson = prefs.getStringList(purchasedItemsKey) ?? [];
+    final purchasedItemIds = await DataService.getPurchasedItems(_currentUser!.username);
     
-    for (final itemId in purchasedItemsJson) {
+    for (final itemId in purchasedItemIds) {
       purchasedItems[itemId] = true;
     }
   }
 
-  Future<void> _savePurchasedItems() async {
-    if (_currentUser == null) return;
-    
-    final prefs = await SharedPreferences.getInstance();
-    final purchasedItemsKey = UserService.getPurchasedItemsKey(_currentUser!.username);
-    final purchasedItemsList = purchasedItems.entries
-        .where((entry) => entry.value)
-        .map((entry) => entry.key)
-        .toList();
-    await prefs.setStringList(purchasedItemsKey, purchasedItemsList);
-  }
+
 
   @override
   void dispose() {
@@ -90,6 +88,8 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
   }
 
   Future<void> _buyItem(String category, String itemId, String itemName, int price) async {
+    if (_currentUser == null) return;
+    
     final hasEnoughCoins = await CoinService.hasEnoughCoins(price);
     
     if (!hasEnoughCoins) {
@@ -115,12 +115,12 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
 
     final success = await CoinService.deductCoins(price);
     if (success) {
+      // 使用 DataService 添加已購買商品
+      await DataService.addPurchasedItem(_currentUser!.username, itemId);
+      
       setState(() {
         purchasedItems[itemId] = true;
       });
-      
-      // 保存已購買物品
-      await _savePurchasedItems();
       
       // 刷新金幣顯示
       _coinDisplayKey.currentState?.refreshCoins();
@@ -199,27 +199,27 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
               ),
               child: Column(
                 children: [
-                                     Row(
-                     children: [
-                       IconButton(
-                         icon: const Icon(Icons.arrow_back, color: Colors.white),
-                         onPressed: () => Navigator.pop(context),
-                       ),
-                       const Expanded(
-                         child: Text(
-                           '商城',
-                           style: TextStyle(
-                             color: Colors.white,
-                             fontSize: 24,
-                             fontWeight: FontWeight.bold,
-                           ),
-                           textAlign: TextAlign.center,
-                         ),
-                       ),
-                       CoinDisplay(key: _coinDisplayKey),
-                       const SizedBox(width: 16),
-                     ],
-                   ),
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.arrow_back, color: Colors.white),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                      const Expanded(
+                        child: Text(
+                          '商城',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      CoinDisplay(key: _coinDisplayKey),
+                      const SizedBox(width: 16),
+                    ],
+                  ),
                   const SizedBox(height: 16),
                   // 標籤欄
                   Container(
@@ -265,203 +265,238 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                 controller: _tabController,
                 children: categories.map((category) {
                   final categoryItems = items[category] ?? [];
+                  print('Building category: $category, items count: ${categoryItems.length}'); // 調試信息
 
                   return Padding(
                     padding: const EdgeInsets.all(16.0),
-                    child: GridView.builder(
-                      itemCount: categoryItems.length,
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.75,
-                        crossAxisSpacing: 16,
-                        mainAxisSpacing: 16,
-                      ),
-                      itemBuilder: (context, index) {
-                        final item = categoryItems[index];
-                        return TweenAnimationBuilder<double>(
-                          duration: Duration(milliseconds: 300 + (index * 50)),
-                          tween: Tween(begin: 0.0, end: 1.0),
-                          builder: (context, value, child) {
-                            return Transform.scale(
-                              scale: value,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  gradient: LinearGradient(
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                    colors: [
-                                      Colors.white,
-                                      Colors.grey.shade50,
-                                    ],
+                    child: categoryItems.isEmpty 
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey.shade400),
+                                const SizedBox(height: 16),
+                                Text(
+                                  '此類別尚無商品',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    color: Colors.grey.shade600,
                                   ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.1),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 4),
-                                    ),
-                                  ],
                                 ),
-                                child: Column(
-                                  children: [
-                                    // 商品圖片區域
-                                    Container(
-                                      height: 120,
+                              ],
+                            ),
+                          )
+                        : GridView.builder(
+                            itemCount: categoryItems.length,
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 16,
+                              mainAxisSpacing: 16,
+                            ),
+                            itemBuilder: (context, index) {
+                              final item = categoryItems[index];
+                              return TweenAnimationBuilder<double>(
+                                duration: Duration(milliseconds: 300 + (index * 50)),
+                                tween: Tween(begin: 0.0, end: 1.0),
+                                builder: (context, value, child) {
+                                  return Transform.scale(
+                                    scale: value,
+                                    child: Container(
                                       decoration: BoxDecoration(
-                                        borderRadius: const BorderRadius.vertical(
-                                          top: Radius.circular(20),
-                                        ),
+                                        borderRadius: BorderRadius.circular(20),
                                         gradient: LinearGradient(
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
                                           colors: [
-                                            Colors.blue.shade100,
-                                            Colors.blue.shade200,
+                                            Colors.white,
+                                            Colors.grey.shade50,
                                           ],
                                         ),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withOpacity(0.1),
+                                            blurRadius: 10,
+                                            offset: const Offset(0, 4),
+                                          ),
+                                        ],
                                       ),
-                                      child: Stack(
+                                      child: Column(
                                         children: [
-                                          Center(
-                                            child: Icon(
-                                              item['image'],
-                                              size: 48,
-                                              color: Colors.blue.shade600,
+                                          // 商品圖片區域
+                                          Container(
+                                            height: 120,
+                                            decoration: BoxDecoration(
+                                              borderRadius: const BorderRadius.vertical(
+                                                top: Radius.circular(20),
+                                              ),
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  Colors.blue.shade100,
+                                                  Colors.blue.shade200,
+                                                ],
+                                              ),
+                                            ),
+                                            child: Stack(
+                                              children: [
+                                                Center(
+                                                  child: item.imagePath != null
+                                                      ? ClipRRect(
+                                                          borderRadius: BorderRadius.circular(8),
+                                                          child: Image.file(
+                                                            File(item.imagePath!),
+                                                            fit: BoxFit.cover,
+                                                            width: double.infinity,
+                                                            height: double.infinity,
+                                                            errorBuilder: (context, error, stackTrace) {
+                                                              return Icon(
+                                                                categoryIcons[item.category] ?? Icons.shopping_bag,
+                                                                size: 48,
+                                                                color: Colors.blue.shade600,
+                                                              );
+                                                            },
+                                                          ),
+                                                        )
+                                                      : Icon(
+                                                          categoryIcons[item.category] ?? Icons.shopping_bag,
+                                                          size: 48,
+                                                          color: Colors.blue.shade600,
+                                                        ),
+                                                ),
+                                                // 稀有度標籤
+                                                Positioned(
+                                                  top: 8,
+                                                  right: 8,
+                                                  child: Container(
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 8,
+                                                      vertical: 4,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: _getRarityColor(item.rarity),
+                                                      borderRadius: BorderRadius.circular(12),
+                                                    ),
+                                                    child: Text(
+                                                      item.rarity,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 10,
+                                                        fontWeight: FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
                                             ),
                                           ),
-                                          // 稀有度標籤
-                                          Positioned(
-                                            top: 8,
-                                            right: 8,
-                                            child: Container(
-                                              padding: const EdgeInsets.symmetric(
-                                                horizontal: 8,
-                                                vertical: 4,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: _getRarityColor(item['rarity']),
-                                                borderRadius: BorderRadius.circular(12),
-                                              ),
-                                              child: Text(
-                                                item['rarity'],
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
+                                          // 商品資訊
+                                          Expanded(
+                                            child: Padding(
+                                              padding: const EdgeInsets.all(12),
+                                              child: Column(
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    item.name,
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 14,
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  const SizedBox(height: 4),
+                                                  Text(
+                                                    item.description,
+                                                    style: TextStyle(
+                                                      color: Colors.grey.shade600,
+                                                      fontSize: 10,
+                                                    ),
+                                                    maxLines: 2,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                  const Spacer(),
+                                                  Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.monetization_on,
+                                                        size: 16,
+                                                        color: Colors.amber.shade600,
+                                                      ),
+                                                      const SizedBox(width: 4),
+                                                      Text(
+                                                        '${item.price}',
+                                                        style: TextStyle(
+                                                          fontWeight: FontWeight.bold,
+                                                          color: Colors.amber.shade700,
+                                                          fontSize: 16,
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  const SizedBox(height: 8),
+                                                  SizedBox(
+                                                    width: double.infinity,
+                                                    child: purchasedItems[item.id] == true
+                                                        ? Container(
+                                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.green.shade100,
+                                                              borderRadius: BorderRadius.circular(12),
+                                                              border: Border.all(color: Colors.green.shade300),
+                                                            ),
+                                                            child: Row(
+                                                              mainAxisAlignment: MainAxisAlignment.center,
+                                                              children: [
+                                                                Icon(
+                                                                  Icons.check_circle,
+                                                                  color: Colors.green.shade600,
+                                                                  size: 16,
+                                                                ),
+                                                                const SizedBox(width: 4),
+                                                                Text(
+                                                                  '已購買',
+                                                                  style: TextStyle(
+                                                                    color: Colors.green.shade700,
+                                                                    fontWeight: FontWeight.bold,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            ),
+                                                          )
+                                                        : ElevatedButton(
+                                                            onPressed: () => _buyItem(
+                                                              category,
+                                                              item.id,
+                                                              item.name,
+                                                              item.price,
+                                                            ),
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor: Colors.blue.shade600,
+                                                              foregroundColor: Colors.white,
+                                                              shape: RoundedRectangleBorder(
+                                                                borderRadius: BorderRadius.circular(12),
+                                                              ),
+                                                              elevation: 2,
+                                                            ),
+                                                            child: const Text(
+                                                              '購買',
+                                                              style: TextStyle(fontWeight: FontWeight.bold),
+                                                            ),
+                                                          ),
+                                                  ),
+                                                ],
                                               ),
                                             ),
                                           ),
                                         ],
                                       ),
                                     ),
-                                    // 商品資訊
-                                    Expanded(
-                                      child: Padding(
-                                        padding: const EdgeInsets.all(12),
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              item['name'],
-                                              style: const TextStyle(
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 14,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              item['description'],
-                                              style: TextStyle(
-                                                color: Colors.grey.shade600,
-                                                fontSize: 10,
-                                              ),
-                                              maxLines: 2,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const Spacer(),
-                                            Row(
-                                              children: [
-                                                Icon(
-                                                  Icons.monetization_on,
-                                                  size: 16,
-                                                  color: Colors.amber.shade600,
-                                                ),
-                                                const SizedBox(width: 4),
-                                                Text(
-                                                  '${item['price']}',
-                                                  style: TextStyle(
-                                                    fontWeight: FontWeight.bold,
-                                                    color: Colors.amber.shade700,
-                                                    fontSize: 16,
-                                                  ),
-                                                ),
-                                              ],
-                                            ),
-                                                                                         const SizedBox(height: 8),
-                                             SizedBox(
-                                               width: double.infinity,
-                                               child: purchasedItems[item['id']] == true
-                                                   ? Container(
-                                                       padding: const EdgeInsets.symmetric(vertical: 12),
-                                                       decoration: BoxDecoration(
-                                                         color: Colors.green.shade100,
-                                                         borderRadius: BorderRadius.circular(12),
-                                                         border: Border.all(color: Colors.green.shade300),
-                                                       ),
-                                                       child: Row(
-                                                         mainAxisAlignment: MainAxisAlignment.center,
-                                                         children: [
-                                                           Icon(
-                                                             Icons.check_circle,
-                                                             color: Colors.green.shade600,
-                                                             size: 16,
-                                                           ),
-                                                           const SizedBox(width: 4),
-                                                           Text(
-                                                             '已購買',
-                                                             style: TextStyle(
-                                                               color: Colors.green.shade700,
-                                                               fontWeight: FontWeight.bold,
-                                                             ),
-                                                           ),
-                                                         ],
-                                                       ),
-                                                     )
-                                                   : ElevatedButton(
-                                                       onPressed: () => _buyItem(
-                                                         category,
-                                                         item['id'],
-                                                         item['name'],
-                                                         item['price'],
-                                                       ),
-                                                       style: ElevatedButton.styleFrom(
-                                                         backgroundColor: Colors.blue.shade600,
-                                                         foregroundColor: Colors.white,
-                                                         shape: RoundedRectangleBorder(
-                                                           borderRadius: BorderRadius.circular(12),
-                                                         ),
-                                                         elevation: 2,
-                                                       ),
-                                                       child: const Text(
-                                                         '購買',
-                                                         style: TextStyle(fontWeight: FontWeight.bold),
-                                                       ),
-                                                     ),
-                                             ),
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
                   );
                 }).toList(),
               ),

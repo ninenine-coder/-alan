@@ -1,6 +1,8 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import 'chat_message.dart';
 import 'chat_service.dart';
 import 'pet_page.dart';
@@ -11,6 +13,7 @@ import 'coin_display.dart';
 import 'welcome_coin_animation.dart';
 import 'coin_service.dart';
 import 'user_service.dart';
+import 'challenge_service.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -118,6 +121,13 @@ class _ChatPageState extends State<ChatPage> {
     });
     await _saveMessages();
 
+    // 處理每日訊息任務
+    final messageReward = await ChallengeService.handleDailyMessage();
+    if (messageReward) {
+      // 刷新金幣顯示
+      _coinDisplayKey.currentState?.refreshCoins();
+    }
+
     final response = await ChatService.sendMessage(text);
 
     final aiMessage = ChatMessage(text: response, isUser: false, time: DateTime.now());
@@ -128,6 +138,105 @@ class _ChatPageState extends State<ChatPage> {
     });
     await _saveMessages();
     _scrollToBottom();
+  }
+
+  // 選擇並上傳圖片
+  Future<void> _pickAndUploadImage() async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        final file = File(image.path);
+        if (await file.exists()) {
+          // 添加圖片訊息
+          final now = DateTime.now();
+          final imageMessage = ChatMessage(
+            text: '[圖片]',
+            isUser: true,
+            time: now,
+            imagePath: image.path,
+          );
+
+          setState(() {
+            _messages.add(imageMessage);
+            _listKey.currentState?.insertItem(_messages.length - 1);
+            _isTyping = true;
+          });
+          await _saveMessages();
+
+          // 檢查是否為捷運站圖片
+          final isMetroImage = await _checkMetroImage(image.path);
+          if (isMetroImage) {
+            // 處理捷運打卡任務
+            final metroReward = await ChallengeService.handleMetroCheckin();
+            if (metroReward) {
+              // 刷新金幣顯示
+              _coinDisplayKey.currentState?.refreshCoins();
+              
+              // 添加AI自動回復
+              final aiResponse = ChatMessage(
+                text: '完成每日挑戰，請自挑戰任務領取獎勵',
+                isUser: false,
+                time: DateTime.now(),
+              );
+              
+              setState(() {
+                _isTyping = false;
+                _messages.add(aiResponse);
+                _listKey.currentState?.insertItem(_messages.length - 1);
+              });
+              await _saveMessages();
+            }
+          } else {
+            // 普通圖片，正常AI回復
+            final response = await ChatService.sendMessage('我上傳了一張圖片');
+            final aiMessage = ChatMessage(
+              text: response,
+              isUser: false,
+              time: DateTime.now(),
+            );
+            
+            setState(() {
+              _isTyping = false;
+              _messages.add(aiMessage);
+              _listKey.currentState?.insertItem(_messages.length - 1);
+            });
+            await _saveMessages();
+          }
+          
+          _scrollToBottom();
+        }
+      }
+    } catch (e) {
+      print('Error picking image: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('選擇圖片時發生錯誤: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // 檢查是否為捷運站圖片（簡單的文字檢測）
+  Future<bool> _checkMetroImage(String imagePath) async {
+    // 這裡應該使用真正的圖像識別API
+    // 目前使用簡單的模擬檢測
+    // 實際應用中應該使用 Google Vision API 或其他圖像識別服務
+    
+    // 模擬檢測：隨機返回true/false，實際應該分析圖片內容
+    await Future.delayed(const Duration(seconds: 1)); // 模擬處理時間
+    
+    // 簡單的模擬邏輯：30% 機率檢測到捷運標示
+    return DateTime.now().millisecondsSinceEpoch % 3 == 0;
   }
 
   void _clearMessages() async {
@@ -205,12 +314,44 @@ class _ChatPageState extends State<ChatPage> {
                     color: message.isUser ? Colors.blueAccent : Colors.grey.shade300,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text(
-                    message.text,
-                    style: TextStyle(
-                      color: message.isUser ? Colors.white : Colors.black87,
-                    ),
-                  ),
+                  child: message.imagePath != null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(8),
+                              child: Image.file(
+                                File(message.imagePath!),
+                                width: 200,
+                                height: 150,
+                                fit: BoxFit.cover,
+                                errorBuilder: (context, error, stackTrace) {
+                                  return Container(
+                                    width: 200,
+                                    height: 150,
+                                    color: Colors.grey.shade300,
+                                    child: const Icon(Icons.broken_image),
+                                  );
+                                },
+                              ),
+                            ),
+                            if (message.text.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              Text(
+                                message.text,
+                                style: TextStyle(
+                                  color: message.isUser ? Colors.white : Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ],
+                        )
+                      : Text(
+                          message.text,
+                          style: TextStyle(
+                            color: message.isUser ? Colors.white : Colors.black87,
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -253,6 +394,10 @@ class _ChatPageState extends State<ChatPage> {
                     border: InputBorder.none,
                   ),
                 ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.photo_camera),
+                onPressed: _pickAndUploadImage,
               ),
               IconButton(
                 icon: const Icon(Icons.send),

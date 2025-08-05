@@ -1,16 +1,111 @@
-# flutter_application_1
+# 捷米小助手 - 後端管理系統
 
-A new Flutter project.
+## 功能特色
 
-## Getting Started
+### 管理員系統
+- **管理員登入**: 帳號 `test`，密碼 `test`
+- **商城管理**: 新增、修改、刪除商品，支援圖片上傳
+- **徽章管理**: 新增、修改、刪除徽章，支援圖片上傳
 
-This project is a starting point for a Flutter application.
+### 商城功能
+- **商品分類**: 造型、裝飾、語氣、動作、飼料
+- **圖片支援**: 管理員可為商品上傳圖片，使用者可直接看到商品樣貌
+- **稀有度系統**: 常見、普通、稀有
+- **購買系統**: 使用金幣購買商品
+- **已購買狀態**: 購買後商品顯示「已購買」狀態
 
-A few resources to get you started if this is your first Flutter project:
+### 徽章系統
+- **徽章收集**: 顯示所有可用徽章
+- **圖片支援**: 管理員可為徽章上傳圖片，使用者可直接看到徽章樣貌
+- **稀有度**: 常見、普通、稀有、傳說
+- **獲得條件**: 每個徽章都有特定的獲得條件
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+### 桌寵系統
+- **收藏展示**: 在桌寵頁面顯示已購買的商品
+- **分類管理**: 按類別（造型、裝飾、語氣、動作、飼料）展示已擁有商品
+- **圖片預覽**: 在分類卡片上顯示第一個已購買商品的圖片
+- **詳細查看**: 點擊分類可查看該類別所有已購買的商品
+- **已擁有標籤**: 所有已購買商品都標示「已擁有」
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+## 技術架構
+
+### 資料管理
+- 使用 `SharedPreferences` 進行本地資料儲存
+- 統一的 `DataService` 管理所有資料操作
+- 圖片檔案自動管理（儲存、刪除）
+- 已購買商品追蹤和管理
+
+### 圖片功能
+- 支援從相簿選擇圖片
+- 自動壓縮和優化圖片大小
+- 圖片檔案自動儲存到應用程式目錄
+- 錯誤處理：圖片載入失敗時顯示預設圖示
+- 商城和徽章都支援圖片功能
+
+### 購買系統
+- 金幣扣除和餘額檢查
+- 已購買商品自動記錄
+- 即時更新購買狀態
+- 跨頁面資料同步
+
+## 使用說明
+
+### 管理員操作
+1. 點擊「管理員登入」
+2. 輸入帳號密碼：`test` / `test`
+3. 選擇要管理的功能（商城管理或徽章管理）
+4. 在商城管理中，可以：
+   - 點擊「+」新增商品
+   - 選擇商品圖片
+   - 設定商品資訊（名稱、價格、描述、稀有度）
+   - 編輯或刪除現有商品
+5. 在徽章管理中，可以：
+   - 點擊「+」新增徽章
+   - 選擇徽章圖片
+   - 設定徽章資訊（名稱、描述、獲得條件、稀有度）
+   - 編輯或刪除現有徽章
+
+### 使用者操作
+1. 點擊「用戶登入」
+2. 註冊或登入帳號
+3. 進入商城查看商品（包含實際圖片）
+4. 使用金幣購買商品
+5. 購買後商品會顯示「已購買」狀態
+6. 進入桌寵頁面查看已購買的商品收藏
+7. 點擊分類查看該類別所有已擁有的商品
+8. 查看徽章收集狀況（包含實際圖片）
+
+## 檔案結構
+
+```
+lib/
+├── main.dart                    # 主入口，包含選擇頁面
+├── admin_login_page.dart        # 管理員登入頁面
+├── admin_store_management_page.dart  # 商城管理頁面（支援圖片）
+├── admin_medal_management_page.dart  # 徽章管理頁面（支援圖片）
+├── data_service.dart            # 資料服務（統一管理，包含已購買商品追蹤）
+├── store_page.dart              # 使用者商城頁面（顯示商品圖片和購買狀態）
+├── medal_page.dart              # 使用者徽章頁面（顯示徽章圖片）
+├── pet_page.dart                # 桌寵頁面（顯示已購買商品收藏）
+├── login_page.dart              # 使用者登入頁面
+├── chat_page.dart               # 聊天頁面
+├── coin_service.dart            # 金幣服務
+├── coin_display.dart            # 金幣顯示元件
+└── user_service.dart            # 使用者服務
+```
+
+## 依賴套件
+
+- `shared_preferences`: 本地資料儲存
+- `image_picker`: 圖片選擇功能
+- `path_provider`: 檔案路徑管理
+
+## 注意事項
+
+1. 圖片功能需要相簿存取權限
+2. 圖片會自動儲存到應用程式目錄，不會佔用相簿空間
+3. 刪除商品或徽章時會自動刪除相關的圖片檔案
+4. 所有資料變更會即時同步到所有使用者
+5. 商城和徽章都支援完整的圖片管理功能
+6. 已購買商品會自動記錄並在桌寵頁面顯示
+7. 購買狀態會即時更新，無需重新啟動應用程式
