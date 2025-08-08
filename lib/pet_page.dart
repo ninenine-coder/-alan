@@ -21,12 +21,13 @@ class _PetPageState extends State<PetPage> {
   double experience = 0.65; // 65% 經驗
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
   Map<String, List<StoreItem>> purchasedItemsByCategory = {};
-  User? _currentUser;
   bool _isInteracting = false;
 
   @override
   void initState() {
     super.initState();
+    petName = widget.initialPetName;
+    _controller = TextEditingController(text: petName);
     _loadPetName();
     _loadPurchasedItems();
   }
@@ -40,7 +41,7 @@ class _PetPageState extends State<PetPage> {
     final savedName = prefs.getString(aiNameKey) ?? widget.initialPetName;
     setState(() {
       petName = savedName;
-      _controller = TextEditingController(text: petName);
+      _controller.text = petName;
     });
   }
 
@@ -48,7 +49,6 @@ class _PetPageState extends State<PetPage> {
     final currentUser = await UserService.getCurrentUser();
     if (currentUser == null) return;
     
-    _currentUser = currentUser;
     final purchasedItems = await DataService.getPurchasedItemsByCategory(currentUser.username);
     
     setState(() {
@@ -82,12 +82,13 @@ class _PetPageState extends State<PetPage> {
         
         // 顯示成功訊息
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
+          final scaffoldMessenger = ScaffoldMessenger.of(context);
+          scaffoldMessenger.showSnackBar(
             SnackBar(
-              content: Row(
+              content: const Row(
                 children: [
-                  const Icon(Icons.pets, color: Colors.white),
-                  const SizedBox(width: 8),
+                  Icon(Icons.pets, color: Colors.white),
+                  SizedBox(width: 8),
                   Expanded(
                     child: Text('完成每日挑戰，請自挑戰任務領取獎勵'),
                   ),
@@ -96,13 +97,14 @@ class _PetPageState extends State<PetPage> {
               backgroundColor: Colors.green.shade600,
               behavior: SnackBarBehavior.floating,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              duration: const Duration(seconds: 3),
+              duration: Duration(seconds: 3),
             ),
           );
         }
       }
     } catch (e) {
-      print('Error handling pet interaction: $e');
+      // 使用 debugPrint 替代 print
+      debugPrint('Error handling pet interaction: $e');
     } finally {
       setState(() {
         _isInteracting = false;
@@ -221,14 +223,19 @@ class _PetPageState extends State<PetPage> {
                 ElevatedButton(
                   onPressed: () async {
                     final newName = _controller.text.trim();
+                    final navigatorContext = context;
                     if (newName.isNotEmpty) {
                       await _savePetName(newName); // 保存新名稱
                       setState(() {
                         petName = newName;
                       });
-                      Navigator.pop(context, newName); // 回傳新名字
+                      if (mounted) {
+                        Navigator.pop(navigatorContext, newName); // 回傳新名字
+                      }
                     } else {
-                      Navigator.pop(context);
+                      if (mounted) {
+                        Navigator.pop(navigatorContext);
+                      }
                     }
                   },
                   child: const Text('確定'),
@@ -271,7 +278,9 @@ class _PetPageState extends State<PetPage> {
     return GestureDetector(
       onTap: () {
         if (items.isNotEmpty) {
-          _showCategoryItems(title, items);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _showCategoryItems(title, items);
+          });
         }
       },
       child: Container(
@@ -379,8 +388,8 @@ class _PetPageState extends State<PetPage> {
                           flex: 3,
                           child: Container(
                             width: double.infinity,
-                            decoration: BoxDecoration(
-                              borderRadius: const BorderRadius.vertical(
+                            decoration: const BoxDecoration(
+                              borderRadius: BorderRadius.vertical(
                                 top: Radius.circular(12),
                               ),
                               color: Colors.white,

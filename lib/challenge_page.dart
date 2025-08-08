@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'coin_service.dart';
 import 'coin_display.dart';
 import 'challenge_service.dart';
 
@@ -39,13 +38,14 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
     try {
       final dailyStatus = await ChallengeService.getDailyTaskStatus();
       final weeklyStatus = await ChallengeService.getWeeklyTaskStatus();
+
       setState(() {
         _dailyTaskStatus = dailyStatus;
         _weeklyTaskStatus = weeklyStatus;
         _isLoading = false;
       });
-    } catch (e) {
-      print('Error loading tasks: $e');
+    } catch (e, stackTrace) {
+      // 錯誤處理
       setState(() {
         _isLoading = false;
       });
@@ -97,7 +97,7 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
         }
       }
     } catch (e) {
-      print('Error claiming reward: $e');
+      // 錯誤處理
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -157,7 +157,7 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
         }
       }
     } catch (e) {
-      print('Error claiming weekly reward: $e');
+      // 錯誤處理
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

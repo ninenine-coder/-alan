@@ -33,13 +33,12 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
     });
   }
 
-  Future<File?> _pickImage() async {
+
+
+  Future<File?> _pickImageWithContext(BuildContext context) async {
     try {
-      print('Starting image picker for medal...');
-      
       // 檢查權限
       if (!mounted) {
-        print('Widget not mounted, aborting image pick');
         return null;
       }
       
@@ -52,18 +51,15 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
       );
       
       if (!mounted) {
-        print('Widget unmounted during image pick, aborting');
         return null;
       }
       
       if (image != null) {
-        print('Image selected for medal: ${image.path}');
-        
         // 檢查檔案路徑是否有效
         if (image.path.isEmpty) {
-          print('Error: Image path is empty');
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+            scaffoldMessenger.showSnackBar(
               const SnackBar(
                 content: Text('選擇的圖片路徑無效'),
                 backgroundColor: Colors.red,
@@ -77,16 +73,13 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
         
         // 檢查檔案是否存在
         if (await file.exists()) {
-          print('Selected medal image file exists and is accessible');
-          
           // 檢查檔案大小
           final fileSize = await file.length();
-          print('Image file size: ${fileSize} bytes');
           
           if (fileSize > 10 * 1024 * 1024) { // 10MB 限制
-            print('Error: Image file too large: ${fileSize} bytes');
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
+              final scaffoldMessenger = ScaffoldMessenger.of(context);
+              scaffoldMessenger.showSnackBar(
                 const SnackBar(
                   content: Text('圖片檔案太大，請選擇較小的圖片'),
                   backgroundColor: Colors.red,
@@ -98,9 +91,9 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
           
           return file;
         } else {
-          print('Error: Selected medal image file does not exist: ${image.path}');
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+            scaffoldMessenger.showSnackBar(
               const SnackBar(
                 content: Text('選擇的圖片檔案不存在'),
                 backgroundColor: Colors.red,
@@ -110,18 +103,15 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
           return null;
         }
       } else {
-        print('No image selected for medal');
         return null;
       }
     } catch (e) {
-      print('Error picking medal image: $e');
-      print('Error details: ${e.toString()}');
-      
       // 顯示錯誤訊息給使用者
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        scaffoldMessenger.showSnackBar(
           SnackBar(
-            content: Text('選擇圖片時發生錯誤: ${e.toString()}'),
+            content: Text('選擇圖片時發生錯誤: $e'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
@@ -165,7 +155,6 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
                             width: double.infinity,
                             height: 200,
                             errorBuilder: (context, error, stackTrace) {
-                              print('Error loading medal image preview: $error');
                               return Container(
                                 width: double.infinity,
                                 height: 200,
@@ -217,40 +206,31 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
                 const SizedBox(height: 16),
                 ElevatedButton.icon(
                   onPressed: () async {
+                    final dialogContext = context;
                     try {
-                      print('Image selection button pressed for medal');
-                      
                       // 檢查對話框是否仍然存在
                       if (!mounted) {
-                        print('Dialog not mounted, aborting image selection');
                         return;
                       }
                       
-                      final image = await _pickImage();
+                      final image = await _pickImageWithContext(dialogContext);
                       
                       // 再次檢查對話框是否仍然存在
                       if (!mounted) {
-                        print('Dialog unmounted after image pick, aborting');
                         return;
                       }
                       
                       if (image != null) {
-                        print('Image selected successfully, updating dialog state');
                         setDialogState(() {
                           selectedImage = image;
                         });
-                        print('Dialog state updated with selected image');
-                      } else {
-                        print('No image selected or image selection failed');
                       }
                     } catch (e) {
-                      print('Error in medal image selection button: $e');
-                      print('Error details: ${e.toString()}');
-                      
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                        scaffoldMessenger.showSnackBar(
                           SnackBar(
-                            content: Text('選擇圖片時發生錯誤: ${e.toString()}'),
+                            content: Text('選擇圖片時發生錯誤: $e'),
                             backgroundColor: Colors.red,
                             duration: const Duration(seconds: 3),
                           ),
@@ -305,95 +285,91 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
               child: const Text('取消'),
             ),
             ElevatedButton(
-              onPressed: () async {
-                try {
-                  if (nameController.text.isNotEmpty && 
-                      descriptionController.text.isNotEmpty &&
-                      requirementController.text.isNotEmpty) {
-                    
-                    print('Creating new medal...');
-                    final medalId = 'medal-${DateTime.now().millisecondsSinceEpoch}';
-                    String? imagePath;
-                    
-                    // 保存圖片
-                    if (selectedImage != null) {
-                      print('Saving image for medal: $medalId');
-                      try {
-                        imagePath = await DataService.saveImage(selectedImage!, medalId);
-                        if (imagePath != null) {
-                          print('Medal image saved successfully: $imagePath');
-                        } else {
-                          print('Failed to save medal image');
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('圖片保存失敗，但徽章已新增'),
-                                backgroundColor: Colors.orange,
-                              ),
-                            );
+                                onPressed: () async {
+                    final dialogContext = context;
+                    try {
+                      if (nameController.text.isNotEmpty && 
+                          descriptionController.text.isNotEmpty &&
+                          requirementController.text.isNotEmpty) {
+                        
+                        final medalId = 'medal-${DateTime.now().millisecondsSinceEpoch}';
+                        String? imagePath;
+                        
+                        // 保存圖片
+                        if (selectedImage != null) {
+                          try {
+                            imagePath = await DataService.saveImage(selectedImage!, medalId);
+                            if (imagePath == null) {
+                              if (mounted) {
+                                final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                                scaffoldMessenger.showSnackBar(
+                                  const SnackBar(
+                                    content: Text('圖片保存失敗，但徽章已新增'),
+                                    backgroundColor: Colors.orange,
+                                  ),
+                                );
+                              }
+                            }
+                          } catch (imageError) {
+                            if (mounted) {
+                              final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                              scaffoldMessenger.showSnackBar(
+                                SnackBar(
+                                  content: Text('圖片保存失敗: $imageError'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                            }
                           }
                         }
-                      } catch (imageError) {
-                        print('Error saving medal image: $imageError');
+                        
+                        final newMedal = Medal(
+                          id: medalId,
+                          name: nameController.text,
+                          description: descriptionController.text,
+                          iconName: selectedIconName,
+                          rarity: selectedRarity,
+                          requirement: int.tryParse(requirementController.text) ?? 0,
+                          imagePath: imagePath,
+                        );
+                        
+                        await DataService.addMedal(newMedal);
+                        
                         if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
+                          await _loadMedals();
+                          Navigator.pop(dialogContext);
+                          
+                          final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                          scaffoldMessenger.showSnackBar(
                             SnackBar(
-                              content: Text('圖片保存失敗: ${imageError.toString()}'),
-                              backgroundColor: Colors.orange,
+                              content: Text(imagePath != null ? '徽章新增成功' : '徽章新增成功（圖片保存失敗）'),
+                              backgroundColor: imagePath != null ? Colors.green : Colors.orange,
+                            ),
+                          );
+                        }
+                      } else {
+                        if (mounted) {
+                          final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                          scaffoldMessenger.showSnackBar(
+                            const SnackBar(
+                              content: Text('請填寫所有必要欄位'),
+                              backgroundColor: Colors.red,
                             ),
                           );
                         }
                       }
-                    } else {
-                      print('No image selected for this medal');
+                    } catch (e) {
+                      if (mounted) {
+                        final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                        scaffoldMessenger.showSnackBar(
+                          SnackBar(
+                            content: Text('新增徽章時發生錯誤: $e'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     }
-                    
-                    final newMedal = Medal(
-                      id: medalId,
-                      name: nameController.text,
-                      description: descriptionController.text,
-                      iconName: selectedIconName,
-                      rarity: selectedRarity,
-                      requirement: int.tryParse(requirementController.text) ?? 0,
-                      imagePath: imagePath,
-                    );
-                    
-                    print('Adding new medal to database...');
-                    await DataService.addMedal(newMedal);
-                    
-                    if (mounted) {
-                      await _loadMedals();
-                      Navigator.pop(context);
-                      
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(imagePath != null ? '徽章新增成功' : '徽章新增成功（圖片保存失敗）'),
-                          backgroundColor: imagePath != null ? Colors.green : Colors.orange,
-                        ),
-                      );
-                    }
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('請填寫所有必要欄位'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  print('Error creating medal: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('新增徽章時發生錯誤: ${e.toString()}'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
+                  },
               child: const Text('新增'),
             ),
           ],
@@ -436,7 +412,6 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
                             width: double.infinity,
                             height: 200,
                             errorBuilder: (context, error, stackTrace) {
-                              print('Error loading medal image preview in edit: $error');
                               return Container(
                                 width: double.infinity,
                                 height: 200,
@@ -521,41 +496,32 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
                     Expanded(
                       child: ElevatedButton.icon(
                         onPressed: () async {
+                          final dialogContext = context;
                           try {
-                            print('Image selection button pressed for medal edit');
-                            
                             // 檢查對話框是否仍然存在
                             if (!mounted) {
-                              print('Dialog not mounted, aborting image selection');
                               return;
                             }
                             
-                            final image = await _pickImage();
+                            final image = await _pickImageWithContext(dialogContext);
                             
                             // 再次檢查對話框是否仍然存在
                             if (!mounted) {
-                              print('Dialog unmounted after image pick, aborting');
                               return;
                             }
                             
                             if (image != null) {
-                              print('Image selected successfully for edit, updating dialog state');
                               setDialogState(() {
                                 selectedImage = image;
                                 currentImagePath = null;
                               });
-                              print('Dialog state updated with selected image for edit');
-                            } else {
-                              print('No image selected or image selection failed for edit');
                             }
                           } catch (e) {
-                            print('Error in medal edit image selection button: $e');
-                            print('Error details: ${e.toString()}');
-                            
                             if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
+                              final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                              scaffoldMessenger.showSnackBar(
                                 SnackBar(
-                                  content: Text('選擇圖片時發生錯誤: ${e.toString()}'),
+                                  content: Text('選擇圖片時發生錯誤: $e'),
                                   backgroundColor: Colors.red,
                                   duration: const Duration(seconds: 3),
                                 ),
@@ -632,6 +598,7 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
             ),
             ElevatedButton(
               onPressed: () async {
+                final dialogContext = context;
                 if (nameController.text.isNotEmpty && 
                     descriptionController.text.isNotEmpty &&
                     requirementController.text.isNotEmpty) {
@@ -664,11 +631,14 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
                   
                   await DataService.updateMedal(updatedMedal);
                   await _loadMedals();
-                  Navigator.pop(context);
+                  Navigator.pop(dialogContext);
                   
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('徽章更新成功')),
-                  );
+                  if (mounted) {
+                    final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                    scaffoldMessenger.showSnackBar(
+                      const SnackBar(content: Text('徽章更新成功')),
+                    );
+                  }
                 }
               },
               child: const Text('更新'),
@@ -692,13 +662,17 @@ class _AdminMedalManagementPageState extends State<AdminMedalManagementPage> {
           ),
           ElevatedButton(
             onPressed: () async {
+              final dialogContext = context;
               await DataService.deleteMedal(medal.id);
               await _loadMedals();
-              Navigator.pop(context);
+              Navigator.pop(dialogContext);
               
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('徽章刪除成功')),
-              );
+              if (mounted) {
+                final scaffoldMessenger = ScaffoldMessenger.of(dialogContext);
+                scaffoldMessenger.showSnackBar(
+                  const SnackBar(content: Text('徽章刪除成功')),
+                );
+              }
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('刪除'),

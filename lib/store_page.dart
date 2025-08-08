@@ -37,19 +37,15 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
   void initState() {
     super.initState();
     _tabController = TabController(length: categories.length, vsync: this);
-    print('StorePage initState called'); // 調試信息
     _loadUserData();
   }
 
   Future<void> _loadUserData() async {
-    print('Loading user data...'); // 調試信息
     _currentUser = await UserService.getCurrentUser();
-    print('Current user: ${_currentUser?.username ?? 'null'}'); // 調試信息
     await _loadPurchasedItems();
     await _loadStoreItems();
     // 確保 UI 更新
     setState(() {});
-    print('StorePage data loaded, items count: ${items.length}'); // 調試信息
   }
 
   Future<void> _loadStoreItems() async {
@@ -65,8 +61,6 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
       }
       items[item.category]!.add(item);
     }
-    
-    print('Loaded ${allItems.length} store items from admin system');
   }
 
   Future<void> _loadPurchasedItems() async {
@@ -189,13 +183,13 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
+                                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
               ),
               child: Column(
                 children: [
@@ -224,7 +218,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                   // 標籤欄
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(25),
                     ),
                     child: TabBar(
@@ -235,7 +229,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                         borderRadius: BorderRadius.circular(25),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 4,
                             offset: const Offset(0, 2),
                           ),
@@ -265,7 +259,6 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                 controller: _tabController,
                 children: categories.map((category) {
                   final categoryItems = items[category] ?? [];
-                  print('Building category: $category, items count: ${categoryItems.length}'); // 調試信息
 
                   return Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -313,13 +306,13 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                                             Colors.grey.shade50,
                                           ],
                                         ),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black.withOpacity(0.1),
-                                            blurRadius: 10,
-                                            offset: const Offset(0, 4),
-                                          ),
-                                        ],
+                                                                                  boxShadow: [
+                                            BoxShadow(
+                                              color: Colors.black.withValues(alpha: 0.1),
+                                              blurRadius: 10,
+                                              offset: const Offset(0, 4),
+                                            ),
+                                          ],
                                       ),
                                       child: Column(
                                         children: [

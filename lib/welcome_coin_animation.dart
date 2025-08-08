@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'coin_service.dart';
 
 class WelcomeCoinAnimation extends StatefulWidget {
   final VoidCallback? onAnimationComplete;
