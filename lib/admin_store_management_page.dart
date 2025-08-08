@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:io';
+import 'dart:developer' as developer;
 import 'data_service.dart';
 
 class AdminStoreManagementPage extends StatefulWidget {
@@ -45,7 +46,7 @@ class _AdminStoreManagementPageState extends State<AdminStoreManagementPage> {
 
   Future<File?> _pickImage() async {
     try {
-      print('Starting image picker...');
+      developer.log('Starting image picker...');
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(
         source: ImageSource.gallery,
@@ -55,24 +56,24 @@ class _AdminStoreManagementPageState extends State<AdminStoreManagementPage> {
       );
       
       if (image != null) {
-        print('Image selected: ${image.path}');
+        developer.log('Image selected: ${image.path}');
         final file = File(image.path);
         
         // 檢查檔案是否存在
         if (await file.exists()) {
-          print('Selected image file exists and is accessible');
+          developer.log('Selected image file exists and is accessible');
           return file;
         } else {
-          print('Error: Selected image file does not exist: ${image.path}');
+          developer.log('Error: Selected image file does not exist: ${image.path}');
           return null;
         }
       } else {
-        print('No image selected');
+        developer.log('No image selected');
         return null;
       }
     } catch (e) {
-      print('Error picking image: $e');
-      print('Error details: ${e.toString()}');
+      developer.log('Error picking image: $e');
+      developer.log('Error details: ${e.toString()}');
       // 顯示錯誤訊息給使用者
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -90,233 +91,308 @@ class _AdminStoreManagementPageState extends State<AdminStoreManagementPage> {
     final nameController = TextEditingController();
     final priceController = TextEditingController();
     final descriptionController = TextEditingController();
+    String selectedCategory = this.selectedCategory; // 使用類別成員變數的初始值
     String selectedRarity = '常見';
     String selectedIconName = 'shopping_bag';
     File? selectedImage;
+    File? uploadedImage; // 新增：用於存儲已上傳的圖片
 
     showDialog(
       context: context,
       builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('新增商品'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 圖片選擇區域
-                Container(
-                  width: double.infinity,
-                  height: 200,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: selectedImage != null
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: Image.file(
-                            selectedImage!,
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: 200,
-                          ),
-                        )
-                      : Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.add_photo_alternate,
-                              size: 48,
-                              color: Colors.grey.shade400,
+        builder: (context, setDialogState) {
+          // 添加調試信息
+          developer.log('Dialog state - selectedImage: ${selectedImage?.path}');
+          developer.log('Dialog state - uploadedImage: ${uploadedImage?.path}');
+          
+          return AlertDialog(
+            title: const Text('新增商品'),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 圖片選擇區域
+                  Container(
+                    width: double.infinity,
+                    height: 200,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.grey.shade300),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: uploadedImage != null
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.file(
+                              uploadedImage!,
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                              height: 200,
+                              errorBuilder: (context, error, stackTrace) {
+                                developer.log('Error loading image: $error');
+                                return Container(
+                                  width: double.infinity,
+                                  height: 200,
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade200,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.error_outline,
+                                        size: 48,
+                                        color: Colors.red.shade400,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        '圖片載入失敗',
+                                        style: TextStyle(
+                                          color: Colors.red.shade600,
+                                          fontSize: 14,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              '點擊選擇商品圖片',
-                              style: TextStyle(
-                                color: Colors.grey.shade600,
-                                fontSize: 14,
+                          )
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add_photo_alternate,
+                                size: 48,
+                                color: Colors.grey.shade400,
                               ),
-                            ),
-                          ],
-                        ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  onPressed: () async {
-                    try {
-                      final image = await _pickImage();
-                      if (image != null) {
-                        setDialogState(() {
-                          selectedImage = image;
-                        });
-                      }
-                    } catch (e) {
-                      print('Error in image selection button: $e');
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text('選擇圖片時發生錯誤: ${e.toString()}'),
-                            backgroundColor: Colors.red,
+                              const SizedBox(height: 8),
+                              Text(
+                                uploadedImage != null ? '圖片已上傳' : '點擊選擇商品圖片',
+                                style: TextStyle(
+                                  color: Colors.grey.shade600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                            ],
                           ),
-                        );
-                      }
-                    }
-                  },
-                  icon: const Icon(Icons.photo_library),
-                  label: const Text('選擇圖片'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue.shade100,
-                    foregroundColor: Colors.blue.shade700,
                   ),
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedCategory,
-                  decoration: const InputDecoration(labelText: '類別'),
-                  items: categories.map((category) {
-                    return DropdownMenuItem(
-                      value: category,
-                      child: Text(category),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    selectedCategory = value!;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(labelText: '商品名稱'),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: priceController,
-                  decoration: const InputDecoration(labelText: '價格'),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(labelText: '描述'),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-                DropdownButtonFormField<String>(
-                  value: selectedRarity,
-                  decoration: const InputDecoration(labelText: '稀有度'),
-                  items: ['常見', '普通', '稀有'].map((rarity) {
-                    return DropdownMenuItem(
-                      value: rarity,
-                      child: Text(rarity),
-                    );
-                  }).toList(),
-                  onChanged: (value) {
-                    selectedRarity = value!;
-                  },
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                try {
-                  if (nameController.text.isNotEmpty && 
-                      priceController.text.isNotEmpty &&
-                      descriptionController.text.isNotEmpty) {
-                    
-                    print('Creating new item...');
-                    final itemId = '${selectedCategory}-${DateTime.now().millisecondsSinceEpoch}';
-                    String? imagePath;
-                    
-                    // 保存圖片
-                    if (selectedImage != null) {
-                      print('Saving image for item: $itemId');
+                  const SizedBox(height: 16),
+                  // 圖片選擇按鈕
+                  ElevatedButton.icon(
+                    onPressed: () async {
                       try {
-                        imagePath = await DataService.saveImage(selectedImage!, itemId);
-                        if (imagePath != null) {
-                          print('Image saved successfully: $imagePath');
+                        developer.log('Image selection button pressed');
+                        final image = await _pickImage();
+                        if (image != null) {
+                          developer.log('Image picked successfully: ${image.path}');
+                          setDialogState(() {
+                            selectedImage = image;
+                          });
+                          developer.log('Selected image set in state: ${selectedImage?.path}');
                         } else {
-                          print('Failed to save image');
+                          developer.log('No image selected or error occurred');
+                        }
+                      } catch (e) {
+                        developer.log('Error in image selection button: $e');
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('選擇圖片時發生錯誤: ${e.toString()}'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    icon: const Icon(Icons.photo_library),
+                    label: const Text('選擇圖片'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade100,
+                      foregroundColor: Colors.blue.shade700,
+                    ),
+                  ),
+                  // 上傳按鈕（僅在選擇圖片後顯示）
+                  if (selectedImage != null && uploadedImage == null) ...[
+                    const SizedBox(height: 16),
+                    ElevatedButton.icon(
+                      onPressed: () {
+                        developer.log('Upload button pressed');
+                        developer.log('Selected image: ${selectedImage?.path}');
+                        setDialogState(() {
+                          uploadedImage = selectedImage;
+                          selectedImage = null; // 清除選擇的圖片，避免重複上傳
+                        });
+                        developer.log('Uploaded image set: ${uploadedImage?.path}');
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('圖片上傳成功！'),
+                              backgroundColor: Colors.green,
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.upload),
+                      label: const Text('上傳圖片'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green.shade100,
+                        foregroundColor: Colors.green.shade700,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: selectedCategory,
+                    decoration: const InputDecoration(labelText: '類別'),
+                    items: categories.map((category) {
+                      return DropdownMenuItem(
+                        value: category,
+                        child: Text(category),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      setDialogState(() {
+                        selectedCategory = value!;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: nameController,
+                    decoration: const InputDecoration(labelText: '商品名稱'),
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: priceController,
+                    decoration: const InputDecoration(labelText: '價格'),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: descriptionController,
+                    decoration: const InputDecoration(labelText: '描述'),
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<String>(
+                    value: selectedRarity,
+                    decoration: const InputDecoration(labelText: '稀有度'),
+                    items: ['常見', '普通', '稀有'].map((rarity) {
+                      return DropdownMenuItem(
+                        value: rarity,
+                        child: Text(rarity),
+                      );
+                    }).toList(),
+                    onChanged: (value) {
+                      selectedRarity = value!;
+                    },
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('取消'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  try {
+                    if (nameController.text.isNotEmpty && 
+                        priceController.text.isNotEmpty &&
+                        descriptionController.text.isNotEmpty) {
+                      
+                                             developer.log('Creating new item...');
+                       final itemId = '$selectedCategory-${DateTime.now().millisecondsSinceEpoch}';
+                      String? imagePath;
+                      
+                      // 保存圖片
+                      if (uploadedImage != null) {
+                        developer.log('Saving image for item: $itemId');
+                        try {
+                          imagePath = await DataService.saveImage(uploadedImage!, itemId);
+                          if (imagePath != null) {
+                            developer.log('Image saved successfully: $imagePath');
+                          } else {
+                            developer.log('Failed to save image');
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('圖片保存失敗，但商品已新增'),
+                                  backgroundColor: Colors.orange,
+                                ),
+                              );
+                            }
+                          }
+                        } catch (imageError) {
+                          developer.log('Error saving image: $imageError');
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('圖片保存失敗，但商品已新增'),
+                              SnackBar(
+                                content: Text('圖片保存失敗: ${imageError.toString()}'),
                                 backgroundColor: Colors.orange,
                               ),
                             );
                           }
                         }
-                      } catch (imageError) {
-                        print('Error saving image: $imageError');
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('圖片保存失敗: ${imageError.toString()}'),
-                              backgroundColor: Colors.orange,
-                            ),
-                          );
-                        }
+                      } else {
+                        developer.log('No image selected for this item');
+                      }
+                      
+                      final newItem = StoreItem(
+                        id: itemId,
+                        name: nameController.text,
+                        price: int.tryParse(priceController.text) ?? 0,
+                        description: descriptionController.text,
+                        category: selectedCategory,
+                        rarity: selectedRarity,
+                        iconName: selectedIconName,
+                        imagePath: imagePath,
+                      );
+                      
+                      developer.log('Adding new item to database...');
+                      await DataService.addStoreItem(newItem);
+                      
+                      if (mounted) {
+                        await _loadStoreItems();
+                        Navigator.pop(context);
+                        
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(imagePath != null ? '商品新增成功' : '商品新增成功（圖片保存失敗）'),
+                            backgroundColor: imagePath != null ? Colors.green : Colors.orange,
+                          ),
+                        );
                       }
                     } else {
-                      print('No image selected for this item');
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('請填寫所有必要欄位'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
                     }
-                    
-                    final newItem = StoreItem(
-                      id: itemId,
-                      name: nameController.text,
-                      price: int.tryParse(priceController.text) ?? 0,
-                      description: descriptionController.text,
-                      category: selectedCategory,
-                      rarity: selectedRarity,
-                      iconName: selectedIconName,
-                      imagePath: imagePath,
-                    );
-                    
-                    print('Adding new item to database...');
-                    await DataService.addStoreItem(newItem);
-                    
+                  } catch (e) {
+                    developer.log('Error creating item: $e');
                     if (mounted) {
-                      await _loadStoreItems();
-                      Navigator.pop(context);
-                      
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
-                          content: Text(imagePath != null ? '商品新增成功' : '商品新增成功（圖片保存失敗）'),
-                          backgroundColor: imagePath != null ? Colors.green : Colors.orange,
-                        ),
-                      );
-                    }
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('請填寫所有必要欄位'),
+                          content: Text('新增商品時發生錯誤: ${e.toString()}'),
                           backgroundColor: Colors.red,
                         ),
                       );
                     }
                   }
-                } catch (e) {
-                  print('Error creating item: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('新增商品時發生錯誤: ${e.toString()}'),
-                        backgroundColor: Colors.red,
-                      ),
-                    );
-                  }
-                }
-              },
-              child: const Text('新增'),
-            ),
-          ],
-        ),
+                },
+                child: const Text('新增'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -354,6 +430,35 @@ class _AdminStoreManagementPageState extends State<AdminStoreManagementPage> {
                             fit: BoxFit.cover,
                             width: double.infinity,
                             height: 200,
+                            errorBuilder: (context, error, stackTrace) {
+                              developer.log('Error loading image: $error');
+                              return Container(
+                                width: double.infinity,
+                                height: 200,
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade200,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.error_outline,
+                                      size: 48,
+                                      color: Colors.red.shade400,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      '圖片載入失敗',
+                                      style: TextStyle(
+                                        color: Colors.red.shade600,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         )
                       : currentImagePath != null
@@ -365,23 +470,32 @@ class _AdminStoreManagementPageState extends State<AdminStoreManagementPage> {
                                  width: double.infinity,
                                  height: 200,
                                 errorBuilder: (context, error, stackTrace) {
-                                  return Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.broken_image,
-                                        size: 48,
-                                        color: Colors.grey.shade400,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        '圖片載入失敗',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade600,
-                                          fontSize: 14,
+                                  developer.log('Error loading image: $error');
+                                  return Container(
+                                    width: double.infinity,
+                                    height: 200,
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey.shade200,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Column(
+                                      mainAxisAlignment: MainAxisAlignment.center,
+                                      children: [
+                                        Icon(
+                                          Icons.error_outline,
+                                          size: 48,
+                                          color: Colors.red.shade400,
                                         ),
-                                      ),
-                                    ],
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          '圖片載入失敗',
+                                          style: TextStyle(
+                                            color: Colors.red.shade600,
+                                            fontSize: 14,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   );
                                 },
                               ),

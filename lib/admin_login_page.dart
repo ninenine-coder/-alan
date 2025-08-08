@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'admin_store_management_page.dart';
 import 'admin_medal_management_page.dart';
+import 'admin_user_management_page.dart';
+import 'test_data.dart';
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
@@ -67,7 +69,20 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
         title: const Text('管理系統'),
         content: const Text('請選擇要管理的功能'),
         actions: [
-          TextButton(
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const AdminUserManagementPage(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.people, color: Colors.green),
+            label: const Text('使用者帳號管理'),
+          ),
+          TextButton.icon(
             onPressed: () {
               Navigator.pop(context);
               Navigator.push(
@@ -77,10 +92,12 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 ),
               );
             },
-            child: const Text('商城管理'),
+            icon: const Icon(Icons.shopping_bag, color: Colors.blue),
+            label: const Text('商城管理'),
           ),
-          TextButton(
+          TextButton.icon(
             onPressed: () {
+              Navigator.pop(context);
               Navigator.pop(context);
               Navigator.push(
                 context,
@@ -89,7 +106,8 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 ),
               );
             },
-            child: const Text('徽章管理'),
+            icon: const Icon(Icons.emoji_events, color: Colors.amber),
+            label: const Text('徽章管理'),
           ),
         ],
       ),
@@ -199,6 +217,32 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                       TextButton(
                         onPressed: () => Navigator.pop(context),
                         child: const Text('返回'),
+                      ),
+                      const SizedBox(height: 8),
+                      TextButton(
+                        onPressed: () async {
+                          try {
+                            await TestData.initializeTestUsers();
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('測試資料初始化成功'),
+                                  backgroundColor: Colors.green,
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('初始化測試資料失敗: $e'),
+                                  backgroundColor: Colors.red,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        child: const Text('初始化測試資料'),
                       ),
                     ],
                   ),

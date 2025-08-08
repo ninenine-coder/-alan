@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'user_service.dart';
+import 'data_service.dart';
 
 class RegisterPage extends StatefulWidget {
   const RegisterPage({super.key});
@@ -11,25 +12,41 @@ class RegisterPage extends StatefulWidget {
 class _RegisterPageState extends State<RegisterPage> {
   final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   bool _isLoading = false;
 
   void _register() async {
     final username = _usernameController.text.trim();
     final password = _passwordController.text.trim();
+    final email = _emailController.text.trim();
     final phone = _phoneController.text.trim();
-    if (username.isEmpty || password.isEmpty || phone.isEmpty) {
+    if (username.isEmpty || password.isEmpty || email.isEmpty || phone.isEmpty) {
       _showDialog('請完整填寫所有欄位');
       return;
     }
     setState(() { _isLoading = true; });
     final success = await UserService.registerUser(username, password, phone);
-    setState(() { _isLoading = false; });
     if (success) {
+      // 更新電子郵件到管理者資料庫
+      final userData = {
+        'username': username,
+        'email': email,
+        'registrationDate': DateTime.now().toIso8601String(),
+        'lastLoginDate': null,
+        'loginCount': 0,
+        'coins': 100,
+        'purchasedItems': [],
+        'earnedMedals': [],
+      };
+      await DataService.saveUserData(username, userData);
+      
+      setState(() { _isLoading = false; });
       if (mounted) {
         Navigator.pop(context, true); // 返回登入頁
       }
     } else {
+      setState(() { _isLoading = false; });
       _showDialog('帳號已存在，請更換帳號');
     }
   }
@@ -54,6 +71,7 @@ class _RegisterPageState extends State<RegisterPage> {
   void dispose() {
     _usernameController.dispose();
     _passwordController.dispose();
+    _emailController.dispose();
     _phoneController.dispose();
     super.dispose();
   }
@@ -75,6 +93,11 @@ class _RegisterPageState extends State<RegisterPage> {
               controller: _passwordController,
               obscureText: true,
               decoration: const InputDecoration(labelText: '密碼'),
+            ),
+            TextField(
+              controller: _emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: const InputDecoration(labelText: '電子郵件'),
             ),
             TextField(
               controller: _phoneController,

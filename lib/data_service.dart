@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:developer' as developer;
 import 'package:path_provider/path_provider.dart';
 
 class StoreItem {
@@ -294,11 +295,11 @@ class DataService {
         if (savedFileSize > 0) {
           return savedImage.path;
         } else {
-          print('Error: Saved image file is empty');
+          developer.log('Error: Saved image file is empty');
           throw Exception('保存的圖片檔案為空');
         }
       } else {
-        print('Error: Saved image file does not exist after copy');
+        developer.log('Error: Saved image file does not exist after copy');
         throw Exception('圖片保存失敗');
       }
     } catch (e) {
@@ -444,5 +445,121 @@ class DataService {
     }
     
     return groupedItems;
+  }
+
+  // 使用者帳號管理
+  static Future<List<Map<String, dynamic>>> getRegisteredUsers() async {
+    final prefs = await SharedPreferences.getInstance();
+    final usersJson = prefs.getStringList('registered_users') ?? [];
+    
+    return usersJson
+        .map((json) => jsonDecode(json) as Map<String, dynamic>)
+        .toList();
+  }
+
+  static Future<void> saveUserData(String username, Map<String, dynamic> userData) async {
+    final prefs = await SharedPreferences.getInstance();
+    final usersJson = prefs.getStringList('registered_users') ?? [];
+    
+    // 檢查是否已存在該用戶
+    final existingIndex = usersJson.indexWhere((json) {
+      final user = jsonDecode(json) as Map<String, dynamic>;
+      return user['username'] == username;
+    });
+    
+    final userJson = jsonEncode(userData);
+    
+    if (existingIndex != -1) {
+      // 更新現有用戶
+      usersJson[existingIndex] = userJson;
+    } else {
+      // 新增用戶
+      usersJson.add(userJson);
+    }
+    
+    await prefs.setStringList('registered_users', usersJson);
+  }
+
+  static Future<void> updateUserLoginInfo(String username) async {
+    final prefs = await SharedPreferences.getInstance();
+    final usersJson = prefs.getStringList('registered_users') ?? [];
+    
+    final userIndex = usersJson.indexWhere((json) {
+      final user = jsonDecode(json) as Map<String, dynamic>;
+      return user['username'] == username;
+    });
+    
+    if (userIndex != -1) {
+      final user = jsonDecode(usersJson[userIndex]) as Map<String, dynamic>;
+      user['lastLoginDate'] = DateTime.now().toIso8601String();
+      user['loginCount'] = (user['loginCount'] ?? 0) + 1;
+      
+      usersJson[userIndex] = jsonEncode(user);
+      await prefs.setStringList('registered_users', usersJson);
+    }
+  }
+
+  static Future<void> updateUserCoins(String username, int coins) async {
+    final prefs = await SharedPreferences.getInstance();
+    final usersJson = prefs.getStringList('registered_users') ?? [];
+    
+    final userIndex = usersJson.indexWhere((json) {
+      final user = jsonDecode(json) as Map<String, dynamic>;
+      return user['username'] == username;
+    });
+    
+    if (userIndex != -1) {
+      final user = jsonDecode(usersJson[userIndex]) as Map<String, dynamic>;
+      user['coins'] = coins;
+      
+      usersJson[userIndex] = jsonEncode(user);
+      await prefs.setStringList('registered_users', usersJson);
+    }
+  }
+
+  static Future<void> addUserPurchasedItem(String username, String itemId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final usersJson = prefs.getStringList('registered_users') ?? [];
+    
+    final userIndex = usersJson.indexWhere((json) {
+      final user = jsonDecode(json) as Map<String, dynamic>;
+      return user['username'] == username;
+    });
+    
+    if (userIndex != -1) {
+      final user = jsonDecode(usersJson[userIndex]) as Map<String, dynamic>;
+      final purchasedItems = List<String>.from(user['purchasedItems'] ?? []);
+      
+      if (!purchasedItems.contains(itemId)) {
+        purchasedItems.add(itemId);
+        user['purchasedItems'] = purchasedItems;
+        
+        usersJson[userIndex] = jsonEncode(user);
+        await prefs.setStringList('registered_users', usersJson);
+      }
+    }
+  }
+
+  static Future<void> addUserEarnedMedal(String username, String medalId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final usersJson = prefs.getStringList('registered_users') ?? [];
+    
+    final userIndex = usersJson.indexWhere((json) {
+      final user = jsonDecode(json) as Map<String, dynamic>;
+      return user['username'] == username;
+    });
+    
+    if (userIndex != -1) {
+      final user = jsonDecode(usersJson[userIndex]) as Map<String, dynamic>;
+      final earnedMedals = List<String>.from(user['earnedMedals'] ?? []);
+      
+      if (!earnedMedals.contains(medalId)) {
+        earnedMedals.add(medalId);
+        user['earnedMedals'] = earnedMedals;
+        
+        usersJson[userIndex] = jsonEncode(user);
+        await prefs.setStringList('registered_users', usersJson);
+      }
+    }
   }
 } 

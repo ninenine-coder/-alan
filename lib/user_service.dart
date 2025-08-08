@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'dart:convert';
+import 'data_service.dart';
 
 class User {
   final String username;
@@ -70,6 +71,20 @@ class UserService {
     final updatedUsersJson = users.map((user) => jsonEncode(user.toJson())).toList();
     await prefs.setStringList(_usersKey, updatedUsersJson);
     
+    // 同時保存到管理者資料庫
+    final userData = {
+      'username': username,
+      'email': '$username@example.com', // 使用預設郵箱
+      'registrationDate': DateTime.now().toIso8601String(),
+      'lastLoginDate': null,
+      'loginCount': 0,
+      'coins': 100, // 新用戶預設100金幣
+      'purchasedItems': [],
+      'earnedMedals': [],
+    };
+    
+    await DataService.saveUserData(username, userData);
+    
     return true; // 註冊成功
   }
 
@@ -90,6 +105,10 @@ class UserService {
     if (user.username.isNotEmpty) {
       // 登入成功，保存當前用戶信息
       await prefs.setString(_currentUserKey, jsonEncode(user.toJson()));
+      
+      // 更新管理者資料庫中的登入信息
+      await DataService.updateUserLoginInfo(username);
+      
       return true;
     }
     

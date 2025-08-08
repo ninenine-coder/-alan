@@ -67,7 +67,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       vsync: this,
     );
     _menuAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _menuAnimationController, curve: Curves.easeOutBack),
+      CurvedAnimation(parent: _menuAnimationController, curve: Curves.easeOut),
     );
 
     // 發送按鈕動畫
@@ -425,11 +425,11 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 Colors.blue.shade50,
               ],
               stops: const [0.0, 0.3, 0.7, 1.0],
-              transform: GradientRotation(_backgroundAnimation.value),
+              transform: GradientRotation(_backgroundAnimation.value.clamp(0.0, 2 * math.pi)),
             ),
           ),
           child: CustomPaint(
-            painter: BackgroundPatternPainter(_backgroundAnimation.value),
+            painter: BackgroundPatternPainter(_backgroundAnimation.value.clamp(0.0, 2 * math.pi)),
             size: Size.infinite,
           ),
         );
@@ -642,8 +642,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       animation: _typingAnimationController,
       builder: (context, child) {
         final delay = index * 0.2;
-        final animationValue = (_typingAnimationController.value + delay) % 1.0;
-        final scale = 0.5 + (0.5 * math.sin(animationValue * 2 * math.pi));
+        final animationValue = ((_typingAnimationController.value.clamp(0.0, 1.0)) + delay) % 1.0;
+        final scale = (0.5 + (0.5 * math.sin(animationValue * 2 * math.pi))).clamp(0.0, 1.0);
         
         return Transform.scale(
           scale: scale,
@@ -771,7 +771,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                     animation: _sendButtonAnimation,
                     builder: (context, child) {
                       return Transform.scale(
-                        scale: _sendButtonAnimation.value,
+                        scale: _sendButtonAnimation.value.clamp(0.0, 1.0),
                         child: Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
@@ -807,9 +807,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               animation: _menuAnimation,
               builder: (context, child) {
                 return Transform.scale(
-                  scale: _menuAnimation.value,
+                  scale: _menuAnimation.value.clamp(0.0, 1.0),
                   child: Opacity(
-                    opacity: _menuAnimation.value,
+                    opacity: _menuAnimation.value.clamp(0.0, 1.0),
                     child: GestureDetector(
                       onTap: () {
                         setState(() {
@@ -1039,7 +1039,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                         end: Offset.zero,
                       ).animate(CurvedAnimation(
                         parent: animation,
-                        curve: Curves.easeOutBack,
+                        curve: Curves.easeOut,
                       )),
                       child: FadeTransition(
                         opacity: animation,
@@ -1082,8 +1082,9 @@ class BackgroundPatternPainter extends CustomPainter {
       ..style = PaintingStyle.fill;
 
     for (int i = 0; i < 20; i++) {
-      final x = (size.width * i / 20) + (animationValue * 50);
-      final y = size.height * 0.2 + (math.sin(animationValue + i * 0.5) * 20);
+      final clampedValue = animationValue.clamp(0.0, 2 * math.pi);
+      final x = (size.width * i / 20) + (clampedValue * 50);
+      final y = size.height * 0.2 + (math.sin(clampedValue + i * 0.5) * 20);
       
       canvas.drawCircle(
         Offset(x, y),
