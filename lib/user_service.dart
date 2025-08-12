@@ -60,7 +60,7 @@ class UserService {
     }
   }
 
-  // 登入用戶
+  // 登入用戶（使用電子郵件）
   static Future<Map<String, dynamic>?> loginUser({
     required String email,
     required String password,
@@ -110,6 +110,63 @@ class UserService {
 
       // 3. 更新登入資訊
       final userData = userDoc.data()!;
+      final updatedData = {
+        ...userData,
+        'lastLoginDate': FieldValue.serverTimestamp(),
+        'loginCount': (userData['loginCount'] ?? 0) + 1,
+      };
+
+      await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .update(updatedData);
+
+      // 4. 儲存到本地
+      await _saveUserDataLocally(updatedData);
+
+      return updatedData;
+    } on FirebaseAuthException {
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // 登入用戶（使用用戶名）
+  static Future<Map<String, dynamic>?> loginUserWithUsername({
+    required String username,
+    required String password,
+  }) async {
+    try {
+      // 1. 根據用戶名查找用戶的電子郵件
+      final userQuery = await _firestore
+          .collection(_usersCollection)
+          .where('username', isEqualTo: username)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) {
+        return null; // 用戶名不存在
+      }
+
+      final userDoc = userQuery.docs.first;
+      final userData = userDoc.data();
+      final email = userData['email'] as String?;
+
+      if (email == null) {
+        return null; // 沒有找到電子郵件
+      }
+
+      // 2. 使用電子郵件進行 Firebase Auth 登入
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = userCredential.user;
+      if (user == null) return null;
+
+      // 3. 更新登入資訊
       final updatedData = {
         ...userData,
         'lastLoginDate': FieldValue.serverTimestamp(),

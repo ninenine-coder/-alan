@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'chat_page.dart';
 import 'register_page.dart';
 import 'welcome_page.dart';
@@ -13,7 +14,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _emailController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _isLoading = false;
@@ -21,17 +22,17 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
 Future<void> _login() async {
-  final email = _emailController.text.trim();
+  final username = _usernameController.text.trim();
   final password = _passwordController.text.trim();
 
-  if (email.isEmpty || password.isEmpty) {
-    _showErrorDialog('請輸入電子郵件與密碼');
+  if (username.isEmpty || password.isEmpty) {
+    _showErrorDialog('請輸入用戶名與密碼');
     return;
   }
 
@@ -42,49 +43,38 @@ Future<void> _login() async {
   });
 
   try {
-    // 使用 Firebase Auth 進行登入
-    UserCredential userCredential = await FirebaseAuth.instance.signInWithEmailAndPassword(
-      email: email,
+    // 使用用戶名進行登入
+    final userData = await UserService.loginUserWithUsername(
+      username: username,
       password: password,
     );
+
+    if (userData == null) {
+      _showErrorDialog('用戶名或密碼錯誤');
+      return;
+    }
     
     // 登入成功！
     
     if (!mounted) return;
 
     // 檢查是否為首次登入
-    final user = userCredential.user;
-    if (user != null) {
-      final creationTime = user.metadata.creationTime;
-      final lastSignInTime = user.metadata.lastSignInTime;
-      final isFirstLogin = creationTime == lastSignInTime;
+    final loginCount = userData['loginCount'] ?? 0;
+    final isFirstLogin = loginCount <= 1;
 
-      if (isFirstLogin) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const WelcomePage()),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const ChatPage()),
-        );
-      }
+    if (isFirstLogin) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const WelcomePage()),
+      );
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const ChatPage()),
+      );
     }
-  } on FirebaseAuthException catch (e) {
-    String message = '登入失敗，請稍後再試';
-    if (e.code == 'user-not-found' || e.code == 'wrong-password') {
-      message = '帳號或密碼錯誤';
-      } else if (e.code == 'invalid-email') {
-        message = '電子郵件格式不正確';
-      } else if (e.code == 'user-disabled') {
-        message = '帳號已被停用';
-      } else if (e.code == 'too-many-requests') {
-        message = '登入嘗試次數過多，請稍後再試';
-    }
-    _showErrorDialog(message);
   } catch (e) {
-    _showErrorDialog('發生錯誤: $e');
+    _showErrorDialog('登入失敗，請稍後再試');
   } finally {
     if (mounted) {
       setState(() {
@@ -129,13 +119,33 @@ Future<void> _login() async {
   }
 
   void _forgotPassword() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      _showErrorDialog('請先輸入電子郵件地址');
+    final username = _usernameController.text.trim();
+    if (username.isEmpty) {
+      _showErrorDialog('請先輸入用戶名');
       return;
     }
 
     try {
+      // 根據用戶名查找電子郵件
+      final userQuery = await FirebaseFirestore.instance
+          .collection('users')
+          .where('username', isEqualTo: username)
+          .limit(1)
+          .get();
+
+      if (userQuery.docs.isEmpty) {
+        _showErrorDialog('找不到該用戶名');
+        return;
+      }
+
+      final userData = userQuery.docs.first.data();
+      final email = userData['email'] as String?;
+
+      if (email == null) {
+        _showErrorDialog('找不到該用戶的電子郵件');
+        return;
+      }
+
       final success = await UserService.resetPassword(email);
       if (!mounted) return;
       
@@ -225,14 +235,13 @@ Future<void> _login() async {
                   ),
                   const SizedBox(height: 32),
 
-                  // 電子郵件輸入框
+                  // 用戶名輸入框
                   TextField(
-                    controller: _emailController,
-                    keyboardType: TextInputType.emailAddress,
+                    controller: _usernameController,
                     decoration: InputDecoration(
-                      labelText: '電子郵件',
-                      hintText: '請輸入您的電子郵件',
-                      prefixIcon: const Icon(Icons.email),
+                      labelText: '用戶名',
+                      hintText: '請輸入您的用戶名',
+                      prefixIcon: const Icon(Icons.person),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),

@@ -2,12 +2,20 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'login_page.dart';
+import 'logger_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 初始化 logger
+  LoggerService.initialize();
+  LoggerService.info('應用程序啟動');
+  
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+  LoggerService.info('Firebase 初始化完成');
+  
   runApp(const MyApp());
 }
 

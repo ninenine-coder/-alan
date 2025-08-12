@@ -12,9 +12,10 @@ import 'challenge_page.dart';
 import 'medal_page.dart';
 import 'coin_display.dart';
 import 'welcome_coin_animation.dart';
-import 'coin_service.dart';
 import 'user_service.dart';
 import 'challenge_service.dart';
+import 'logger_service.dart';
+import 'experience_service.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -31,7 +32,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   bool _isTyping = false;
   bool _showMenu = false;
 
-  String _aiName = '傑米'; // AI 桌寵名稱，初始值
+  String _aiName = '傑米';
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
   bool _showWelcomeAnimation = false;
   Map<String, dynamic>? _currentUser;
@@ -55,13 +56,11 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   void _initializeAnimations() {
-    // 打字動畫
     _typingAnimationController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
 
-    // 選單動畫
     _menuAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
@@ -70,7 +69,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       CurvedAnimation(parent: _menuAnimationController, curve: Curves.easeOut),
     );
 
-    // 發送按鈕動畫
     _sendButtonAnimationController = AnimationController(
       duration: const Duration(milliseconds: 200),
       vsync: this,
@@ -79,7 +77,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       CurvedAnimation(parent: _sendButtonAnimationController, curve: Curves.easeInOut),
     );
 
-    // 背景動畫
     _backgroundAnimationController = AnimationController(
       duration: const Duration(seconds: 10),
       vsync: this,
@@ -88,7 +85,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       CurvedAnimation(parent: _backgroundAnimationController, curve: Curves.linear),
     );
 
-    // 開始背景動畫
     _backgroundAnimationController.repeat();
   }
 
@@ -107,32 +103,68 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       setState(() {
         _currentUser = userData;
       });
+      
+      final loginCount = userData['loginCount'] ?? 0;
+      LoggerService.debug('User login count = $loginCount');
+      
+      if (loginCount == 1) {
+        LoggerService.info('First login detected, showing animation');
+        await Future.delayed(const Duration(milliseconds: 2000));
+        if (mounted) {
+          setState(() {
+            _showWelcomeAnimation = true;
+          });
+          LoggerService.debug('Animation state set to true');
+        }
+      } else {
+        LoggerService.debug('Not first login, login count = $loginCount');
+      }
+    } else {
+      LoggerService.warning('No user data found');
     }
   }
 
-
-
   Future<void> _onWelcomeAnimationComplete() async {
-    // 贈送500金幣
-    await CoinService.addCoins(500);
-    // 刷新金幣顯示
-    _coinDisplayKey.currentState?.refreshCoins();
-    // 隱藏動畫
-    setState(() {
-      _showWelcomeAnimation = false;
-    });
+    LoggerService.info('Animation complete callback called');
+    
+    if (_currentUser != null) {
+      final currentCoins = _currentUser!['coins'] ?? 0;
+      final newCoins = currentCoins + 500;
+      
+      await UserService.updateUserData({'coins': newCoins});
+      
+      setState(() {
+        _currentUser = {..._currentUser!, 'coins': newCoins};
+        _showWelcomeAnimation = false;
+      });
+      
+      _coinDisplayKey.currentState?.refreshCoins();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.monetization_on, color: Colors.amber),
+                const SizedBox(width: 8),
+                const Text('成功獲得 500 金幣！'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    // 當頁面重新獲得焦點時刷新金幣顯示
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _coinDisplayKey.currentState?.refreshCoins();
     });
   }
-
-
 
   Future<void> _saveMessages() async {
     if (_currentUser == null) return;
@@ -149,7 +181,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
     try {
       final now = DateTime.now();
-
       final userMessage = ChatMessage(text: text, isUser: true, time: now);
       _controller.clear();
 
@@ -160,18 +191,14 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       });
       await _saveMessages();
 
-      // 啟動打字動畫
       _typingAnimationController.repeat();
 
-      // 處理每日訊息任務
       try {
         final messageReward = await ChallengeService.handleDailyMessage();
         if (messageReward) {
-          // 刷新金幣顯示
           _coinDisplayKey.currentState?.refreshCoins();
         }
       } catch (e) {
-        // 處理挑戰服務錯誤
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -184,21 +211,18 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       }
 
       final response = await ChatService.sendMessage(text);
-
       final aiMessage = ChatMessage(text: response, isUser: false, time: DateTime.now());
+      
       setState(() {
         _isTyping = false;
         _messages.add(aiMessage);
         _listKey.currentState?.insertItem(_messages.length - 1);
       });
       
-      // 停止打字動畫
       _typingAnimationController.stop();
-      
       await _saveMessages();
       _scrollToBottom();
     } catch (e) {
-      // 處理發送訊息錯誤
       setState(() {
         _isTyping = false;
       });
@@ -216,7 +240,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
   }
 
-  // 選擇並上傳圖片
   Future<void> _pickAndUploadImage() async {
     try {
       final ImagePicker picker = ImagePicker();
@@ -230,7 +253,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       if (image != null) {
         final file = File(image.path);
         if (await file.exists()) {
-          // 添加圖片訊息
           final now = DateTime.now();
           final imageMessage = ChatMessage(
             text: '[圖片]',
@@ -246,18 +268,14 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           });
           await _saveMessages();
 
-          // 檢查是否為捷運站圖片
           try {
             final isMetroImage = await _checkMetroImage(image.path);
             if (isMetroImage) {
-              // 處理捷運打卡任務
               try {
                 final metroReward = await ChallengeService.handleMetroCheckin();
                 if (metroReward) {
-                  // 刷新金幣顯示
                   _coinDisplayKey.currentState?.refreshCoins();
                   
-                  // 添加AI自動回復
                   final aiResponse = ChatMessage(
                     text: '完成每日挑戰，請自挑戰任務領取獎勵',
                     isUser: false,
@@ -272,7 +290,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                   await _saveMessages();
                 }
               } catch (e) {
-                // 處理挑戰服務錯誤
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
@@ -284,7 +301,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 }
               }
             } else {
-              // 普通圖片，正常AI回復
               final response = await ChatService.sendMessage('我上傳了一張圖片');
               final aiMessage = ChatMessage(
                 text: response,
@@ -302,7 +318,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             
             _scrollToBottom();
           } catch (e) {
-            // 處理圖片檢查錯誤
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
@@ -316,7 +331,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         }
       }
     } catch (e) {
-      // 錯誤處理
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -329,20 +343,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
   }
 
-  // 檢查是否為捷運站圖片（簡單的文字檢測）
   Future<bool> _checkMetroImage(String imagePath) async {
-    // 這裡應該使用真正的圖像識別API
-    // 目前使用簡單的模擬檢測
-    // 實際應用中應該使用 Google Vision API 或其他圖像識別服務
-    
-    // 模擬檢測：隨機返回true/false，實際應該分析圖片內容
-    await Future.delayed(const Duration(seconds: 1)); // 模擬處理時間
-    
-    // 簡單的模擬邏輯：30% 機率檢測到捷運標示
+    await Future.delayed(const Duration(seconds: 1));
     return DateTime.now().millisecondsSinceEpoch % 3 == 0;
   }
-
-
 
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
@@ -354,8 +358,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     });
   }
 
-
-
   Future<void> _saveAiName(String name) async {
     if (_currentUser == null) return;
     
@@ -365,7 +367,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     await prefs.setString(aiNameKey, name);
   }
 
-  // 美化的背景組件
   Widget _buildAnimatedBackground() {
     return AnimatedBuilder(
       animation: _backgroundAnimation,
@@ -421,10 +422,15 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-                    child: CircleAvatar(
-                      radius: 20,
-                      backgroundImage: const AssetImage('assets/images/pet_avatar.png'),
-                    ),
+                                         child: CircleAvatar(
+                       radius: 20,
+                       backgroundColor: Colors.blue.shade400,
+                       child: Icon(
+                         Icons.pets,
+                         color: Colors.white,
+                         size: 24,
+                       ),
+                     ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -539,7 +545,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     );
   }
 
-  // 美化的打字指示器
   Widget _buildTypingIndicator() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -562,10 +567,15 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          CircleAvatar(
-            radius: 16,
-            backgroundImage: const AssetImage('assets/images/pet_avatar.png'),
-          ),
+                     CircleAvatar(
+             radius: 16,
+             backgroundColor: Colors.blue.shade400,
+             child: Icon(
+               Icons.pets,
+               color: Colors.white,
+               size: 20,
+             ),
+           ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -641,7 +651,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
-                // 選單按鈕
                 Container(
                   decoration: BoxDecoration(
                     gradient: LinearGradient(
@@ -674,7 +683,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(width: 12),
                 
-                // 輸入框
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
@@ -718,7 +726,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(width: 12),
                 
-                // 發送按鈕
                 GestureDetector(
                   onTapDown: (_) => _sendButtonAnimationController.forward(),
                   onTapUp: (_) => _sendButtonAnimationController.reverse(),
@@ -758,7 +765,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             ),
           ),
           
-          // 選單區域
           if (_showMenu)
             AnimatedBuilder(
               animation: _menuAnimation,
@@ -806,101 +812,228 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   Widget _buildMenuItem(IconData icon, String label, Color color) {
-    return GestureDetector(
-      onTap: () async {
-        setState(() {
-          _showMenu = false;
-        });
-        _menuAnimationController.reverse();
+    return FutureBuilder<Map<String, dynamic>>(
+      future: ExperienceService.getCurrentExperience(),
+      builder: (context, snapshot) {
+        final currentLevel = snapshot.data?['level'] ?? 1;
+        final isUnlocked = _isFeatureUnlocked(label, currentLevel);
+        final requiredLevel = _getRequiredLevel(label);
         
-        // 添加延遲以避免動畫衝突
-        await Future.delayed(const Duration(milliseconds: 100));
+        LoggerService.debug('功能檢查: $label, 當前等級: $currentLevel, 需要等級: $requiredLevel, 已解鎖: $isUnlocked');
         
-        if (!mounted) return;
-        
-        try {
-          if (label == '桌寵') {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => PetPage(initialPetName: _aiName)),
-            ).then((newName) {
-              if (newName != null && newName is String) {
-                setState(() {
-                  _aiName = newName;
-                  _saveAiName(newName);
+        return GestureDetector(
+          onTap: () async {
+            if (!isUnlocked) {
+              _showLevelLockDialog(label, requiredLevel);
+              return;
+            }
+            
+            setState(() {
+              _showMenu = false;
+            });
+            _menuAnimationController.reverse();
+            
+            await Future.delayed(const Duration(milliseconds: 100));
+            
+            if (!mounted) return;
+            
+            try {
+              if (label == '桌寵') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => PetPage(initialPetName: _aiName)),
+                ).then((newName) {
+                  if (newName != null && newName is String) {
+                    setState(() {
+                      _aiName = newName;
+                      _saveAiName(newName);
+                    });
+                  }
+                  _coinDisplayKey.currentState?.refreshCoins();
+                });
+              } else if (label == '商城') {
+                LoggerService.info('嘗試導航到商城頁面');
+                try {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const StorePage()),
+                  ).then((_) {
+                    LoggerService.info('從商城頁面返回');
+                    _coinDisplayKey.currentState?.refreshCoins();
+                  });
+                } catch (e) {
+                  LoggerService.error('導航到商城頁面時發生錯誤: $e');
+                  if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('開啟商城時發生錯誤: $e'),
+                        backgroundColor: Colors.red,
+                        duration: const Duration(seconds: 3),
+                      ),
+                    );
+                  }
+                }
+              } else if (label == '挑戰任務') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ChallengePage()),
+                ).then((_) {
+                  _coinDisplayKey.currentState?.refreshCoins();
+                });
+              } else if (label == '勳章') {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const MedalPage()),
+                ).then((_) {
+                  _coinDisplayKey.currentState?.refreshCoins();
                 });
               }
-              _coinDisplayKey.currentState?.refreshCoins();
-            });
-          } else if (label == '商城') {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const StorePage()),
-            ).then((_) {
-              _coinDisplayKey.currentState?.refreshCoins();
-            });
-          } else if (label == '挑戰任務') {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const ChallengePage()),
-            ).then((_) {
-              _coinDisplayKey.currentState?.refreshCoins();
-            });
-          } else if (label == '勳章') {
-            await Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const MedalPage()),
-            ).then((_) {
-              _coinDisplayKey.currentState?.refreshCoins();
-            });
-          }
-        } catch (e) {
-          // 處理任何錯誤
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('開啟頁面時發生錯誤: $e'),
-                backgroundColor: Colors.red,
-                duration: const Duration(seconds: 3),
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('開啟頁面時發生錯誤: $e'),
+                    backgroundColor: Colors.red,
+                    duration: const Duration(seconds: 3),
+                  ),
+                );
+              }
+            }
+          },
+          child: Container(
+            width: 70,
+            height: 70,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  isUnlocked 
+                      ? color.withValues(alpha: 0.1) 
+                      : Colors.grey.withValues(alpha: 0.1),
+                  isUnlocked 
+                      ? color.withValues(alpha: 0.2) 
+                      : Colors.grey.withValues(alpha: 0.2)
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
               ),
-            );
-          }
-        }
-      },
-      child: Container(
-        width: 70,
-        height: 70,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [color.withValues(alpha: 0.1), color.withValues(alpha: 0.2)],
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isUnlocked 
+                    ? color.withValues(alpha: 0.3) 
+                    : Colors.grey.withValues(alpha: 0.3), 
+                width: 1
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: isUnlocked 
+                      ? color.withValues(alpha: 0.2) 
+                      : Colors.grey.withValues(alpha: 0.2),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Stack(
+              children: [
+                Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      icon,
+                      size: 28,
+                      color: isUnlocked ? color : Colors.grey.shade400,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: isUnlocked ? color : Colors.grey.shade400,
+                      ),
+                    ),
+                  ],
+                ),
+                if (!isUnlocked)
+                  Positioned(
+                    top: 4,
+                    right: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade600,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.lock,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: color.withValues(alpha: 0.2),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
+        );
+      },
+    );
+  }
+
+  bool _isFeatureUnlocked(String feature, int currentLevel) {
+    final requiredLevel = _getRequiredLevel(feature);
+    return currentLevel >= requiredLevel;
+  }
+
+  int _getRequiredLevel(String feature) {
+    switch (feature) {
+      case '桌寵':
+        return 6; // 需要6等才能解鎖桌寵互動
+      case '商城':
+        return 0; // 商城不需要等級限制，隨時可以進入
+      case '挑戰任務':
+        return 11; // 需要11等才能解鎖挑戰任務
+      case '勳章':
+        return 21; // 需要21等才能解鎖勳章
+      default:
+        return 1;
+    }
+  }
+
+  void _showLevelLockDialog(String feature, int requiredLevel) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.lock, color: Colors.red.shade600),
+            const SizedBox(width: 8),
+            Text('功能未解鎖'),
           ],
         ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, size: 28, color: color),
-            const SizedBox(height: 4),
             Text(
-              label,
+              '您需要達到等級 $requiredLevel 才能使用 $feature 功能',
+              style: const TextStyle(fontSize: 16),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '請繼續提升等級來解鎖更多功能！',
               style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: color,
+                fontSize: 14,
+                color: Colors.grey.shade600,
               ),
             ),
           ],
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('知道了'),
+          ),
+        ],
       ),
     );
   }
@@ -935,17 +1068,22 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               height: 32,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: const CircleAvatar(
-                backgroundImage: AssetImage('assets/images/pet_avatar.png'),
-              ),
+                             child: CircleAvatar(
+                 backgroundColor: Colors.blue.shade400,
+                 child: Icon(
+                   Icons.pets,
+                   color: Colors.white,
+                   size: 20,
+                 ),
+               ),
             ),
             const SizedBox(width: 12),
             Text(
@@ -977,12 +1115,12 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       extendBodyBehindAppBar: true,
       body: Stack(
         children: [
-          // 動畫背景
           _buildAnimatedBackground(),
           
           Column(
             children: [
-              const SizedBox(height: 100), // AppBar 高度
+              const SizedBox(height: 100),
+              
               Expanded(
                 child: AnimatedList(
                   key: _listKey,
@@ -1007,18 +1145,16 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 ),
               ),
               
-              // 打字指示器
               if (_isTyping) _buildTypingIndicator(),
               
               _buildInputArea(),
             ],
           ),
           
-          // 首次登入歡迎動畫
           if (_showWelcomeAnimation)
             WelcomeCoinAnimation(
               onAnimationComplete: _onWelcomeAnimationComplete,
-              targetPosition: const Offset(1.0, -1.0),
+              coinAmount: 500,
             ),
         ],
       ),
@@ -1026,7 +1162,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 }
 
-// 背景圖案繪製器
 class BackgroundPatternPainter extends CustomPainter {
   final double animationValue;
 
@@ -1054,4 +1189,3 @@ class BackgroundPatternPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
-

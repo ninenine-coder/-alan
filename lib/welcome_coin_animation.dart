@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
+import 'dart:math' as math;
+import 'dart:ui';
+import 'logger_service.dart';
 
 class WelcomeCoinAnimation extends StatefulWidget {
-  final VoidCallback? onAnimationComplete;
-  final Offset? targetPosition; // 目標位置（右上角金幣顯示位置）
+  final VoidCallback onAnimationComplete;
+  final int coinAmount;
 
   const WelcomeCoinAnimation({
-    super.key, 
-    this.onAnimationComplete,
-    this.targetPosition,
+    super.key,
+    required this.onAnimationComplete,
+    this.coinAmount = 500,
   });
 
   @override
@@ -16,379 +19,367 @@ class WelcomeCoinAnimation extends StatefulWidget {
 
 class _WelcomeCoinAnimationState extends State<WelcomeCoinAnimation>
     with TickerProviderStateMixin {
-  late AnimationController _controller;
+  late AnimationController _mainController;
   late AnimationController _coinController;
-  late AnimationController _flyController;
-  late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
-  late Animation<double> _coinAnimation;
+  late Animation<double> _fadeAnimation;
   late Animation<Offset> _slideAnimation;
-  late Animation<double> _flyScaleAnimation;
-  late Animation<double> _flyOpacityAnimation;
-
+  
+  final List<CoinAnimationData> _coins = [];
+  final math.Random _random = math.Random();
+  
+  bool _isAnimating = false;
   bool _showCoins = false;
-  bool _showClaimButton = false;
-  bool _isFlying = false;
-  int _currentCoins = 0;
-  final int _targetCoins = 500;
-  final int _coinIncrement = 10;
-
-  // 計算目標位置（右上角金幣顯示元件的位置）
-  Offset get _targetOffset {
-    // 根據螢幕尺寸計算右上角位置
-    final screenWidth = MediaQuery.of(context).size.width;
-    final screenHeight = MediaQuery.of(context).size.height;
-    // 右上角位置，稍微偏移以避免被狀態欄遮擋
-    return Offset(screenWidth * 0.85, screenHeight * 0.08);
-  }
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _mainController = AnimationController(
       duration: const Duration(milliseconds: 2000),
       vsync: this,
     );
-
+    
     _coinController = AnimationController(
       duration: const Duration(milliseconds: 1500),
       vsync: this,
     );
 
-    _flyController = AnimationController(
-      duration: const Duration(milliseconds: 1200),
-      vsync: this,
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
+      parent: _mainController,
+      curve: const Interval(0.0, 0.3, curve: Curves.elasticOut),
+    ));
 
     _fadeAnimation = Tween<double>(
       begin: 0.0,
       end: 1.0,
     ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.3, curve: Curves.easeIn),
-    ));
-
-    _scaleAnimation = Tween<double>(
-      begin: 0.5,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.3, curve: Curves.elasticOut),
+      parent: _mainController,
+      curve: const Interval(0.0, 0.5, curve: Curves.easeInOut),
     ));
 
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 0.5),
       end: Offset.zero,
     ).animate(CurvedAnimation(
-      parent: _controller,
-      curve: const Interval(0.0, 0.3, curve: Curves.easeOut),
+      parent: _mainController,
+      curve: const Interval(0.2, 0.8, curve: Curves.easeOutBack),
     ));
 
-    _coinAnimation = Tween<double>(
-      begin: 0.0,
-      end: 1.0,
-    ).animate(CurvedAnimation(
-      parent: _coinController,
-      curve: Curves.easeInOut,
-    ));
-
-
-
-    _flyScaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.2,
-    ).animate(CurvedAnimation(
-      parent: _flyController,
-      curve: Curves.easeInOut,
-    ));
-
-    _flyOpacityAnimation = Tween<double>(
-      begin: 1.0,
-      end: 0.0,
-    ).animate(CurvedAnimation(
-      parent: _flyController,
-      curve: const Interval(0.7, 1.0, curve: Curves.easeIn),
-    ));
-
+    // 初始化金幣動畫數據
+    _initializeCoins();
+    
+    // 開始動畫
     _startAnimation();
   }
 
+  void _initializeCoins() {
+    _coins.clear();
+    for (int i = 0; i < 20; i++) {
+      _coins.add(CoinAnimationData(
+        id: i,
+        startPosition: Offset(
+          _random.nextDouble() * 300 - 150,
+          _random.nextDouble() * 200 - 100,
+        ),
+        delay: Duration(milliseconds: _random.nextInt(500)),
+      ));
+    }
+  }
+
   void _startAnimation() async {
+    LoggerService.info('Starting coin animation');
+    setState(() {
+      _isAnimating = true;
+    });
+
     // 開始主動畫
-    await _controller.forward();
-    
-    // 顯示金幣計數動畫
+    await _mainController.forward();
+    LoggerService.debug('Main animation completed');
+
+    // 顯示金幣
     setState(() {
       _showCoins = true;
     });
-    
-    // 開始金幣計數動畫
-    _coinController.forward();
-    _animateCoinCount();
-  }
+    LoggerService.debug('Coins shown');
 
-  void _animateCoinCount() async {
-    while (_currentCoins < _targetCoins) {
-      await Future.delayed(const Duration(milliseconds: 20));
-      setState(() {
-        _currentCoins += _coinIncrement;
-        if (_currentCoins > _targetCoins) {
-          _currentCoins = _targetCoins;
-        }
-      });
-    }
-    
-    // 顯示領取按鈕
-    setState(() {
-      _showClaimButton = true;
-    });
-  }
+    // 開始金幣動畫
+    await _coinController.forward();
+    LoggerService.debug('Coin animation completed');
 
-  void _claimCoins() async {
+    // 動畫完成
     setState(() {
-      _isFlying = true;
+      _isAnimating = false;
     });
 
-    // 開始飛行動畫
-    await _flyController.forward();
-    
-    // 動畫完成後關閉整個歡迎動畫
-    if (mounted) {
-      await _controller.reverse();
-      widget.onAnimationComplete?.call();
-    }
+    // 延遲一下再調用完成回調
+    await Future.delayed(const Duration(milliseconds: 500));
+    LoggerService.info('Calling animation complete callback');
+    widget.onAnimationComplete();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _mainController.dispose();
     _coinController.dispose();
-    _flyController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // 動態計算飛向目標位置
-    final targetOffset = _targetOffset;
-    
     return AnimatedBuilder(
-      animation: _controller,
+      animation: _mainController,
       builder: (context, child) {
-        return FadeTransition(
-          opacity: _fadeAnimation,
-          child: Container(
-            color: Colors.black54,
-            child: Stack(
-              children: [
-                // 歡迎動畫內容
-                Center(
-                  child: SlideTransition(
-                    position: _slideAnimation,
-                    child: ScaleTransition(
-                      scale: _scaleAnimation,
-                      child: Container(
-                        margin: const EdgeInsets.all(40),
-                        padding: const EdgeInsets.all(30),
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.amber.shade300,
-                              Colors.amber.shade600,
-                            ],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 20,
-                              offset: const Offset(0, 10),
-                            ),
+        return Container(
+          color: Colors.black.withValues(alpha: _fadeAnimation.value * 0.7),
+          child: Stack(
+            children: [
+              // 背景模糊效果
+              BackdropFilter(
+                filter: ImageFilter.blur(
+                  sigmaX: _fadeAnimation.value * 5,
+                  sigmaY: _fadeAnimation.value * 5,
+                ),
+                child: Container(
+                  color: Colors.transparent,
+                ),
+              ),
+              
+              // 主要內容
+              Center(
+                child: SlideTransition(
+                  position: _slideAnimation,
+                  child: ScaleTransition(
+                    scale: _scaleAnimation,
+                    child: Container(
+                      width: 300,
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                          colors: [
+                            Colors.amber.shade100,
+                            Colors.amber.shade200,
+                            Colors.orange.shade200,
                           ],
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            // 歡迎文字
-                            const Text(
-                              '歡迎來到捷米小助手！',
-                              style: TextStyle(
-                                fontSize: 24,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.3),
+                            blurRadius: 20,
+                            offset: const Offset(0, 10),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // 金幣圖標
+                          Container(
+                            width: 80,
+                            height: 80,
+                            decoration: BoxDecoration(
+                              color: Colors.amber.shade400,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.amber.shade600.withValues(alpha: 0.5),
+                                  blurRadius: 15,
+                                  offset: const Offset(0, 5),
+                                ),
+                              ],
+                            ),
+                            child: const Icon(
+                              Icons.monetization_on,
+                              size: 50,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          
+                          // 標題
+                          const Text(
+                            '歡迎加入！',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          
+                          // 描述
+                          Text(
+                            '首次登入贈送您',
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          
+                          // 金幣數量
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.monetization_on,
+                                color: Colors.amber.shade800,
+                                size: 24,
                               ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 20),
-                            
-                            // 金幣圖示
-                            AnimatedBuilder(
-                              animation: _flyController,
-                              builder: (context, child) {
-                                if (_isFlying) {
-                                  // 計算從中心到目標的偏移
-                                  final centerX = MediaQuery.of(context).size.width / 2;
-                                  final centerY = MediaQuery.of(context).size.height / 2;
-                                  final offsetX = targetOffset.dx - centerX;
-                                  final offsetY = targetOffset.dy - centerY;
-                                  
-                                  return Transform.translate(
-                                    offset: Offset(
-                                      offsetX * _flyController.value,
-                                      offsetY * _flyController.value,
-                                    ),
-                                    child: Transform.scale(
-                                      scale: _flyScaleAnimation.value,
-                                      child: Opacity(
-                                        opacity: _flyOpacityAnimation.value,
-                                        child: Container(
-                                          padding: const EdgeInsets.all(20),
-                                          decoration: BoxDecoration(
-                                            color: Colors.amber.shade400,
-                                            shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.amber.shade200.withValues(alpha: 0.5),
-                                                blurRadius: 10,
-                                                spreadRadius: 2,
-                                              ),
-                                            ],
-                                          ),
-                                          child: const Icon(
-                                            Icons.monetization_on,
-                                            size: 60,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  );
-                                }
-                                // 靜止的金幣
-                                return Container(
-                                  padding: const EdgeInsets.all(20),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.monetization_on,
-                                    size: 60,
-                                    color: Colors.white,
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            
-                            // 贈送金幣文字
-                            const Text(
-                              '首次登入贈送',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            
-                            // 金幣數量
-                            AnimatedBuilder(
-                              animation: _coinAnimation,
-                              builder: (context, child) {
-                                return Text(
-                                  '$_currentCoins 金幣',
-                                  style: const TextStyle(
-                                    fontSize: 32,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                );
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            
-                            // 慶祝動畫
-                            if (_showCoins && !_isFlying)
-                              AnimatedBuilder(
-                                animation: _coinAnimation,
-                                builder: (context, child) {
-                                  return Transform.scale(
-                                    scale: 0.8 + (_coinAnimation.value * 0.2),
-                                    child: Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: List.generate(5, (index) {
-                                        return AnimatedContainer(
-                                          duration: Duration(
-                                            milliseconds: 200 + (index * 100),
-                                          ),
-                                          margin: const EdgeInsets.symmetric(horizontal: 4),
-                                          child: Icon(
-                                            Icons.star,
-                                            color: Colors.white,
-                                            size: 20 + (_coinAnimation.value * 10),
-                                          ),
-                                        );
-                                      }),
-                                    ),
-                                  );
-                                },
-                              ),
-                            
-                            // 領取按鈕
-                            if (_showClaimButton && !_isFlying)
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 500),
-                                child: ElevatedButton(
-                                  onPressed: _claimCoins,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.white,
-                                    foregroundColor: Colors.amber.shade700,
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 40,
-                                      vertical: 15,
-                                    ),
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(25),
-                                    ),
-                                    elevation: 5,
-                                  ),
-                                  child: const Text(
-                                    '領取金幣',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
+                              const SizedBox(width: 8),
+                              Text(
+                                '${widget.coinAmount}',
+                                style: TextStyle(
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.amber.shade800,
                                 ),
                               ),
-                          ],
-                        ),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          
+                          // 領取按鈕
+                          SizedBox(
+                            width: double.infinity,
+                            height: 50,
+                            child: ElevatedButton(
+                              onPressed: _isAnimating ? null : () {
+                                if (!_isAnimating) {
+                                  _startCoinAnimation();
+                                }
+                              },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.amber.shade600,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(25),
+                                ),
+                                elevation: 5,
+                              ),
+                              child: _isAnimating
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      ),
+                                    )
+                                  : const Text(
+                                      '立即領取',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                
-                // 目標位置指示器（可選，用於調試）
-                // if (_isFlying)
-                //   Positioned(
-                //     left: targetOffset.dx - 20,
-                //     top: targetOffset.dy - 20,
-                //     child: Container(
-                //       width: 40,
-                //       height: 40,
-                //       decoration: BoxDecoration(
-                //         color: Colors.red.withOpacity(0.3),
-                //         shape: BoxShape.circle,
-                //       ),
-                //     ),
-                //   ),
-              ],
+              ),
+              
+              // 金幣動畫
+              if (_showCoins)
+                ..._coins.map((coin) => _buildCoinAnimation(coin)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCoinAnimation(CoinAnimationData coin) {
+    return AnimatedBuilder(
+      animation: _coinController,
+      builder: (context, child) {
+        final progress = _coinController.value;
+        final delayProgress = coin.delay.inMilliseconds / 500.0;
+        final adjustedProgress = math.max(0, (progress - delayProgress) / (1 - delayProgress));
+        
+        if (adjustedProgress <= 0) return const SizedBox.shrink();
+
+        // 計算金幣位置
+        final startX = MediaQuery.of(context).size.width / 2 + coin.startPosition.dx;
+        final startY = MediaQuery.of(context).size.height / 2 + coin.startPosition.dy;
+        
+        // 目標位置（左上角金幣框）
+        final targetX = 60.0; // 左上角金幣框的X位置
+        final targetY = 100.0; // 左上角金幣框的Y位置
+        
+        // 使用貝塞爾曲線創建拋物線效果
+        final curve = Curves.easeInOut.transform(adjustedProgress.toDouble());
+        final currentX = startX + (targetX - startX) * curve;
+        final currentY = (startY + (targetY - startY) * curve - 50.0 * math.sin(curve * math.pi)).toDouble();
+        
+        // 縮放和透明度
+        final scale = 1.0 - curve * 0.5;
+        final opacity = 1.0 - curve * 0.8;
+
+        return Positioned(
+          left: currentX - 15,
+          top: currentY - 15,
+          child: Transform.scale(
+            scale: scale,
+            child: Opacity(
+              opacity: opacity,
+              child: Container(
+                width: 30,
+                height: 30,
+                decoration: BoxDecoration(
+                  color: Colors.amber.shade400,
+                  shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.amber.shade600.withValues(alpha: 0.5),
+                      blurRadius: 5,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.monetization_on,
+                  size: 20,
+                  color: Colors.white,
+                ),
+              ),
             ),
           ),
         );
       },
     );
   }
+
+  void _startCoinAnimation() {
+    setState(() {
+      _isAnimating = true;
+    });
+    
+    // 開始金幣動畫
+    _coinController.forward().then((_) {
+      setState(() {
+        _isAnimating = false;
+      });
+    });
+  }
+}
+
+class CoinAnimationData {
+  final int id;
+  final Offset startPosition;
+  final Duration delay;
+
+  CoinAnimationData({
+    required this.id,
+    required this.startPosition,
+    required this.delay,
+  });
 } 
