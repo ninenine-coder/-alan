@@ -106,10 +106,11 @@ class ChallengeService {
   // 重置每日任務
   static Future<void> _resetDailyTasks() async {
     final prefs = await SharedPreferences.getInstance();
-    final user = await UserService.getCurrentUser();
-    if (user == null) return;
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
 
-    final tasksKey = '${_dailyTasksKey}_${user.username}';
+    final username = userData['username'] ?? 'default';
+    final tasksKey = '${_dailyTasksKey}_$username';
     final resetTasks = <String, dynamic>{};
     
     for (final task in dailyTaskConfigs.values) {
@@ -126,10 +127,11 @@ class ChallengeService {
   // 重置每周任務
   static Future<void> _resetWeeklyTasks() async {
     final prefs = await SharedPreferences.getInstance();
-    final user = await UserService.getCurrentUser();
-    if (user == null) return;
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
 
-    final tasksKey = '${_weeklyTasksKey}_${user.username}';
+    final username = userData['username'] ?? 'default';
+    final tasksKey = '${_weeklyTasksKey}_$username';
     final resetTasks = <String, dynamic>{};
     
     for (final task in weeklyTaskConfigs.values) {
@@ -148,10 +150,11 @@ class ChallengeService {
     await checkAndResetDailyTasks();
     
     final prefs = await SharedPreferences.getInstance();
-    final user = await UserService.getCurrentUser();
-    if (user == null) return {};
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return {};
 
-    final tasksKey = '${_dailyTasksKey}_${user.username}';
+    final username = userData['username'] ?? 'default';
+    final tasksKey = '${_dailyTasksKey}_$username';
     final tasksJson = prefs.getString(tasksKey);
     
     if (tasksJson == null) {
@@ -182,10 +185,11 @@ class ChallengeService {
     await checkAndResetWeeklyTasks();
     
     final prefs = await SharedPreferences.getInstance();
-    final user = await UserService.getCurrentUser();
-    if (user == null) return {};
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return {};
 
-    final tasksKey = '${_weeklyTasksKey}_${user.username}';
+    final username = userData['username'] ?? 'default';
+    final tasksKey = '${_weeklyTasksKey}_$username';
     final tasksJson = prefs.getString(tasksKey);
     
     if (tasksJson == null) {
@@ -308,10 +312,11 @@ class ChallengeService {
   // 更新任務狀態
   static Future<void> _updateTaskStatus(String taskId) async {
     final prefs = await SharedPreferences.getInstance();
-    final user = await UserService.getCurrentUser();
-    if (user == null) return;
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
 
-    final tasksKey = '${_dailyTasksKey}_${user.username}';
+    final username = userData['username'] ?? 'default';
+    final tasksKey = '${_dailyTasksKey}_$username';
     final tasksJson = prefs.getString(tasksKey);
     final tasksData = tasksJson != null 
         ? jsonDecode(tasksJson) as Map<String, dynamic> 
@@ -332,10 +337,11 @@ class ChallengeService {
   // 更新每周任務狀態
   static Future<void> _updateWeeklyTaskStatus(String taskId) async {
     final prefs = await SharedPreferences.getInstance();
-    final user = await UserService.getCurrentUser();
-    if (user == null) return;
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
 
-    final tasksKey = '${_weeklyTasksKey}_${user.username}';
+    final username = userData['username'] ?? 'default';
+    final tasksKey = '${_weeklyTasksKey}_$username';
     final tasksJson = prefs.getString(tasksKey);
     final tasksData = tasksJson != null 
         ? jsonDecode(tasksJson) as Map<String, dynamic> 
@@ -403,17 +409,16 @@ class ChallengeService {
   // 更新每日訊息任務狀態
   static Future<void> _updateDailyMessageTaskStatus() async {
     final prefs = await SharedPreferences.getInstance();
-    final user = await UserService.getCurrentUser();
-    if (user == null) return;
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
 
-    final tasksKey = '${_dailyTasksKey}_${user.username}';
+    final username = userData['username'] ?? 'default';
+    final tasksKey = '${_dailyTasksKey}_$username';
     final tasksJson = prefs.getString(tasksKey);
     final tasksData = tasksJson != null 
         ? jsonDecode(tasksJson) as Map<String, dynamic> 
         : <String, dynamic>{};
 
-    final currentStatus = tasksData[taskDailyMessage] as Map<String, dynamic>? ?? {};
-    final currentCount = currentStatus['claimedCount'] ?? 0;
     final dailyMessageCount = await getDailyMessageCount();
 
     tasksData[taskDailyMessage] = {
@@ -436,6 +441,14 @@ class ChallengeService {
     }
     
     return prefs.getInt(_dailyMessageCountKey) ?? 0;
+  }
+
+  static Future<void> completeDailyTask(String taskId) async {
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
+    
+    final userId = userData['uid'];
+    if (userId == null) return;
   }
 }
 

@@ -23,7 +23,6 @@ class _WelcomeCoinAnimationState extends State<WelcomeCoinAnimation>
   late Animation<double> _scaleAnimation;
   late Animation<double> _coinAnimation;
   late Animation<Offset> _slideAnimation;
-  late Animation<Offset> _flyAnimation;
   late Animation<double> _flyScaleAnimation;
   late Animation<double> _flyOpacityAnimation;
 
@@ -93,14 +92,7 @@ class _WelcomeCoinAnimationState extends State<WelcomeCoinAnimation>
       curve: Curves.easeInOut,
     ));
 
-    // 金幣飛行動畫 - 飛向整個畫面右上角
-    _flyAnimation = Tween<Offset>(
-      begin: Offset.zero,
-      end: Offset.zero, // 將在 build 中動態計算
-    ).animate(CurvedAnimation(
-      parent: _flyController,
-      curve: Curves.easeInOut,
-    ));
+
 
     _flyScaleAnimation = Tween<double>(
       begin: 1.0,
@@ -210,7 +202,7 @@ class _WelcomeCoinAnimationState extends State<WelcomeCoinAnimation>
                           borderRadius: BorderRadius.circular(20),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withOpacity(0.3),
+                              color: Colors.black.withValues(alpha: 0.3),
                               blurRadius: 20,
                               offset: const Offset(0, 10),
                             ),
@@ -258,7 +250,7 @@ class _WelcomeCoinAnimationState extends State<WelcomeCoinAnimation>
                                             shape: BoxShape.circle,
                                             boxShadow: [
                                               BoxShadow(
-                                                color: Colors.amber.shade200.withOpacity(0.5),
+                                                color: Colors.amber.shade200.withValues(alpha: 0.5),
                                                 blurRadius: 10,
                                                 spreadRadius: 2,
                                               ),
@@ -278,7 +270,7 @@ class _WelcomeCoinAnimationState extends State<WelcomeCoinAnimation>
                                 return Container(
                                   padding: const EdgeInsets.all(20),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withOpacity(0.2),
+                                    color: Colors.white.withValues(alpha: 0.2),
                                     shape: BoxShape.circle,
                                   ),
                                   child: const Icon(

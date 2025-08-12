@@ -10,7 +10,7 @@ class WelcomePage extends StatefulWidget {
 }
 
 class _WelcomePageState extends State<WelcomePage> {
-  User? _currentUser;
+  Map<String, dynamic>? _currentUser;
 
   @override
   void initState() {
@@ -19,9 +19,9 @@ class _WelcomePageState extends State<WelcomePage> {
   }
 
   Future<void> _loadCurrentUser() async {
-    final user = await UserService.getCurrentUser();
+    final userData = await UserService.getCurrentUserData();
     setState(() {
-      _currentUser = user;
+      _currentUser = userData;
     });
   }
 
@@ -74,7 +74,7 @@ class _WelcomePageState extends State<WelcomePage> {
                       const SizedBox(height: 10),
                       if (_currentUser != null)
                         Text(
-                          '${_currentUser!.username}',
+                          '${_currentUser!['username'] ?? 'User'}',
                           style: TextStyle(
                             fontSize: 20,
                             color: Colors.white.withValues(alpha: 0.9),

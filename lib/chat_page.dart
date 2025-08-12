@@ -34,7 +34,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   String _aiName = '傑米'; // AI 桌寵名稱，初始值
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
   bool _showWelcomeAnimation = false;
-  User? _currentUser;
+  Map<String, dynamic>? _currentUser;
 
   // 動畫控制器
   late AnimationController _typingAnimationController;
@@ -102,43 +102,19 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   Future<void> _loadUserData() async {
-    try {
-      _currentUser = await UserService.getCurrentUser();
-      if (_currentUser != null) {
-        await _loadMessages();
-        await _loadAiName();
-        await _checkFirstLogin();
-      }
-    } catch (e) {
-      // 處理用戶數據載入錯誤
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('載入用戶數據時發生錯誤: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
-      }
-    }
-  }
-
-  Future<void> _checkFirstLogin() async {
-    if (_currentUser == null) return;
-    
-    final isFirstLogin = await UserService.isUserFirstLogin(_currentUser!.username);
-    if (isFirstLogin) {
+    final userData = await UserService.getCurrentUserData();
+    if (userData != null) {
       setState(() {
-        _showWelcomeAnimation = true;
+        _currentUser = userData;
       });
     }
   }
 
+
+
   Future<void> _onWelcomeAnimationComplete() async {
     // 贈送500金幣
     await CoinService.addCoins(500);
-    // 標記已登入
-    await UserService.markUserAsLoggedIn(_currentUser!.username);
     // 刷新金幣顯示
     _coinDisplayKey.currentState?.refreshCoins();
     // 隱藏動畫
@@ -156,25 +132,14 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     });
   }
 
-  Future<void> _loadMessages() async {
-    if (_currentUser == null) return;
-    
-    final prefs = await SharedPreferences.getInstance();
-    final messagesKey = UserService.getChatMessagesKey(_currentUser!.username);
-    final savedMessages = prefs.getStringList(messagesKey) ?? [];
-    for (var jsonString in savedMessages) {
-      final message = ChatMessage.fromJson(jsonDecode(jsonString));
-      _messages.add(message);
-      _listKey.currentState?.insertItem(_messages.length - 1);
-    }
-    setState(() {});
-  }
+
 
   Future<void> _saveMessages() async {
     if (_currentUser == null) return;
     
     final prefs = await SharedPreferences.getInstance();
-    final messagesKey = UserService.getChatMessagesKey(_currentUser!.username);
+    final username = _currentUser!['username'] ?? 'default';
+    final messagesKey = 'chat_messages_$username';
     final jsonMessages = _messages.map((m) => jsonEncode(m.toJson())).toList();
     await prefs.setStringList(messagesKey, jsonMessages);
   }
@@ -389,22 +354,14 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     });
   }
 
-  Future<void> _loadAiName() async {
-    if (_currentUser == null) return;
-    
-    final prefs = await SharedPreferences.getInstance();
-    final aiNameKey = UserService.getAiNameKey(_currentUser!.username);
-    final savedName = prefs.getString(aiNameKey) ?? '傑米';
-    setState(() {
-      _aiName = savedName;
-    });
-  }
+
 
   Future<void> _saveAiName(String name) async {
     if (_currentUser == null) return;
     
     final prefs = await SharedPreferences.getInstance();
-    final aiNameKey = UserService.getAiNameKey(_currentUser!.username);
+    final username = _currentUser!['username'] ?? 'default';
+    final aiNameKey = 'ai_name_$username';
     await prefs.setString(aiNameKey, name);
   }
 

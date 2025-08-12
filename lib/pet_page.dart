@@ -33,11 +33,12 @@ class _PetPageState extends State<PetPage> {
   }
 
   Future<void> _loadPetName() async {
-    final currentUser = await UserService.getCurrentUser();
-    if (currentUser == null) return;
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
     
+    final username = userData['username'] ?? 'default';
     final prefs = await SharedPreferences.getInstance();
-    final aiNameKey = UserService.getAiNameKey(currentUser.username);
+    final aiNameKey = 'ai_name_$username';
     final savedName = prefs.getString(aiNameKey) ?? widget.initialPetName;
     setState(() {
       petName = savedName;
@@ -46,10 +47,11 @@ class _PetPageState extends State<PetPage> {
   }
 
   Future<void> _loadPurchasedItems() async {
-    final currentUser = await UserService.getCurrentUser();
-    if (currentUser == null) return;
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
     
-    final purchasedItems = await DataService.getPurchasedItemsByCategory(currentUser.username);
+    final username = userData['username'] ?? 'default';
+    final purchasedItems = await DataService.getPurchasedItemsByCategory(username);
     
     setState(() {
       purchasedItemsByCategory = purchasedItems;
@@ -57,11 +59,12 @@ class _PetPageState extends State<PetPage> {
   }
 
   Future<void> _savePetName(String name) async {
-    final currentUser = await UserService.getCurrentUser();
-    if (currentUser == null) return;
+    final userData = await UserService.getCurrentUserData();
+    if (userData == null) return;
     
+    final username = userData['username'] ?? 'default';
     final prefs = await SharedPreferences.getInstance();
-    final aiNameKey = UserService.getAiNameKey(currentUser.username);
+    final aiNameKey = 'ai_name_$username';
     await prefs.setString(aiNameKey, name);
   }
 
@@ -223,18 +226,18 @@ class _PetPageState extends State<PetPage> {
                 ElevatedButton(
                   onPressed: () async {
                     final newName = _controller.text.trim();
-                    final navigatorContext = context;
+                    final currentContext = context;
                     if (newName.isNotEmpty) {
                       await _savePetName(newName); // 保存新名稱
-                      setState(() {
-                        petName = newName;
-                      });
                       if (mounted) {
-                        Navigator.pop(navigatorContext, newName); // 回傳新名字
+                        setState(() {
+                          petName = newName;
+                        });
+                        Navigator.pop(currentContext, newName); // 回傳新名字
                       }
                     } else {
                       if (mounted) {
-                        Navigator.pop(navigatorContext);
+                        Navigator.pop(currentContext);
                       }
                     }
                   },

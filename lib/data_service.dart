@@ -104,7 +104,7 @@ class DataService {
   // 商城商品管理
   static Future<List<StoreItem>> getStoreItems() async {
     final prefs = await SharedPreferences.getInstance();
-    final itemsJson = prefs.getStringList('admin_store_items') ?? [];
+    final itemsJson = prefs.getStringList('store_items') ?? [];
     
     // 如果沒有商品，初始化預設商品
     if (itemsJson.isEmpty) {
@@ -220,7 +220,7 @@ class DataService {
     final itemsJson = items
         .map((item) => jsonEncode(item.toJson()))
         .toList();
-    await prefs.setStringList('admin_store_items', itemsJson);
+    await prefs.setStringList('store_items', itemsJson);
   }
 
   static Future<void> addStoreItem(StoreItem item) async {
@@ -323,7 +323,7 @@ class DataService {
   // 徽章管理
   static Future<List<Medal>> getMedals() async {
     final prefs = await SharedPreferences.getInstance();
-    final medalsJson = prefs.getStringList('admin_medals') ?? [];
+    final medalsJson = prefs.getStringList('medals') ?? [];
     
     return medalsJson
         .map((json) => Medal.fromJson(jsonDecode(json)))
@@ -335,7 +335,7 @@ class DataService {
     final medalsJson = medals
         .map((medal) => jsonEncode(medal.toJson()))
         .toList();
-    await prefs.setStringList('admin_medals', medalsJson);
+    await prefs.setStringList('medals', medalsJson);
   }
 
   static Future<void> addMedal(Medal medal) async {
@@ -362,8 +362,8 @@ class DataService {
   // 清空所有資料
   static Future<void> clearAllData() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('admin_store_items');
-    await prefs.remove('admin_medals');
+    await prefs.remove('store_items');
+    await prefs.remove('medals');
     
     // 清空圖片資料夾
     try {

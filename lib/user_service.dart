@@ -1,185 +1,331 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'data_service.dart';
-
-class User {
-  final String username;
-  final String password;
-  final String phoneNumber;
-  final DateTime createdAt;
-
-  User({
-    required this.username,
-    required this.password,
-    required this.phoneNumber,
-    required this.createdAt,
-  });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'username': username,
-      'password': password,
-      'phoneNumber': phoneNumber,
-      'createdAt': createdAt.toIso8601String(),
-    };
-  }
-
-  factory User.fromJson(Map<String, dynamic> json) {
-    return User(
-      username: json['username'],
-      password: json['password'],
-      phoneNumber: json['phoneNumber'],
-      createdAt: DateTime.parse(json['createdAt']),
-    );
-  }
-}
 
 class UserService {
-  static const String _usersKey = 'users';
-  static const String _currentUserKey = 'current_user';
+  static final FirebaseAuth _auth = FirebaseAuth.instance;
+  static final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // 獲取用戶特定的存儲鍵
-  static String _getUserKey(String username, String key) {
-    return '${username}_$key';
-  }
+  // 用戶資料模型
+  static const String _usersCollection = 'users';
+  static const String _userDataKey = 'user_data';
 
   // 註冊新用戶
-  static Future<bool> registerUser(String username, String password, String phoneNumber) async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    // 獲取現有用戶列表
-    final usersJson = prefs.getStringList(_usersKey) ?? [];
-    final users = usersJson.map((json) => User.fromJson(jsonDecode(json))).toList();
-    
-    // 檢查用戶名是否已存在
-    if (users.any((user) => user.username == username)) {
-      return false; // 用戶名已存在
-    }
-    
-    // 創建新用戶
-    final newUser = User(
-      username: username,
-      password: password,
-      phoneNumber: phoneNumber,
-      createdAt: DateTime.now(),
-    );
-    
-    // 添加到用戶列表
-    users.add(newUser);
-    
-    // 保存到本地存儲
-    final updatedUsersJson = users.map((user) => jsonEncode(user.toJson())).toList();
-    await prefs.setStringList(_usersKey, updatedUsersJson);
-    
-    // 同時保存到管理者資料庫
-    final userData = {
-      'username': username,
-      'email': '$username@example.com', // 使用預設郵箱
-      'registrationDate': DateTime.now().toIso8601String(),
-      'lastLoginDate': null,
-      'loginCount': 0,
-      'coins': 100, // 新用戶預設100金幣
-      'purchasedItems': [],
-      'earnedMedals': [],
-    };
-    
-    await DataService.saveUserData(username, userData);
-    
-    return true; // 註冊成功
-  }
+  static Future<bool> registerUser({
+    required String email,
+    required String password,
+    required String username,
+    required String phone,
+  }) async {
+    try {
+      // 1. 使用 Firebase Auth 創建帳號
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
 
-  // 用戶登入
-  static Future<bool> loginUser(String username, String password) async {
-    final prefs = await SharedPreferences.getInstance();
-    
-    // 獲取用戶列表
-    final usersJson = prefs.getStringList(_usersKey) ?? [];
-    final users = usersJson.map((json) => User.fromJson(jsonDecode(json))).toList();
-    
-    // 查找用戶
-    final user = users.firstWhere(
-      (user) => user.username == username && user.password == password,
-      orElse: () => User(username: '', password: '', phoneNumber: '', createdAt: DateTime.now()),
-    );
-    
-    if (user.username.isNotEmpty) {
-      // 登入成功，保存當前用戶信息
-      await prefs.setString(_currentUserKey, jsonEncode(user.toJson()));
-      
-      // 更新管理者資料庫中的登入信息
-      await DataService.updateUserLoginInfo(username);
-      
+      final user = userCredential.user;
+      if (user == null) return false;
+
+      // 2. 在 Firestore 中創建用戶資料
+      final userData = {
+        'uid': user.uid,
+        'email': email,
+        'username': username,
+        'phone': phone,
+        'registrationDate': FieldValue.serverTimestamp(),
+        'lastLoginDate': FieldValue.serverTimestamp(),
+        'loginCount': 1,
+        'coins': 100,
+        'purchasedItems': [],
+        'earnedMedals': [],
+        'isActive': true,
+        'profileImageUrl': null,
+        'deviceTokens': [], // 用於推送通知
+      };
+
+      await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .set(userData);
+
+      // 3. 儲存到本地 SharedPreferences
+      await _saveUserDataLocally(userData);
+
       return true;
+    } on FirebaseAuthException {
+      return false;
+    } catch (_) {
+      return false;
     }
-    
-    return false; // 登入失敗
   }
 
-  // 獲取當前登入用戶
-  static Future<User?> getCurrentUser() async {
-    final prefs = await SharedPreferences.getInstance();
-    final userJson = prefs.getString(_currentUserKey);
-    
-    if (userJson != null) {
-      return User.fromJson(jsonDecode(userJson));
+  // 登入用戶
+  static Future<Map<String, dynamic>?> loginUser({
+    required String email,
+    required String password,
+  }) async {
+    try {
+      // 1. Firebase Auth 登入
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+
+      final user = userCredential.user;
+      if (user == null) return null;
+
+      // 2. 從 Firestore 獲取用戶資料
+      final userDoc = await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        // 如果 Firestore 中沒有資料，創建基本資料
+        final basicUserData = {
+          'uid': user.uid,
+          'email': user.email,
+          'username': user.email?.split('@')[0] ?? 'User',
+          'phone': '',
+          'registrationDate': FieldValue.serverTimestamp(),
+          'lastLoginDate': FieldValue.serverTimestamp(),
+          'loginCount': 1,
+          'coins': 100,
+          'purchasedItems': [],
+          'earnedMedals': [],
+          'isActive': true,
+          'profileImageUrl': null,
+          'deviceTokens': [],
+        };
+
+        await _firestore
+            .collection(_usersCollection)
+            .doc(user.uid)
+            .set(basicUserData);
+
+        await _saveUserDataLocally(basicUserData);
+        return basicUserData;
+      }
+
+      // 3. 更新登入資訊
+      final userData = userDoc.data()!;
+      final updatedData = {
+        ...userData,
+        'lastLoginDate': FieldValue.serverTimestamp(),
+        'loginCount': (userData['loginCount'] ?? 0) + 1,
+      };
+
+      await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .update(updatedData);
+
+      // 4. 儲存到本地
+      await _saveUserDataLocally(updatedData);
+
+      return updatedData;
+    } on FirebaseAuthException {
+      return null;
+    } catch (_) {
+      return null;
     }
-    
-    return null;
   }
 
-  // 登出
-  static Future<void> logout() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_currentUserKey);
+  // 登出用戶
+  static Future<void> logoutUser() async {
+    try {
+      await _auth.signOut();
+      await _clearUserDataLocally();
+    } catch (_) {
+      // Logout error occurred
+    }
   }
 
-  // 檢查用戶名是否已存在
-  static Future<bool> isUsernameExists(String username) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList(_usersKey) ?? [];
-    final users = usersJson.map((json) => User.fromJson(jsonDecode(json))).toList();
-    
-    return users.any((user) => user.username == username);
+  // 獲取當前用戶資料
+  static Future<Map<String, dynamic>?> getCurrentUserData() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return null;
+
+      final userDoc = await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .get();
+
+      if (userDoc.exists) {
+        return userDoc.data();
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
   }
 
-  // 獲取所有用戶（用於調試）
-  static Future<List<User>> getAllUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList(_usersKey) ?? [];
-    return usersJson.map((json) => User.fromJson(jsonDecode(json))).toList();
+  // 更新用戶資料
+  static Future<bool> updateUserData(Map<String, dynamic> updates) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+
+      await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .update(updates);
+
+      // 更新本地資料
+      final currentData = await getCurrentUserData();
+      if (currentData != null) {
+        final updatedData = {...currentData, ...updates};
+        await _saveUserDataLocally(updatedData);
+      }
+
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
-  // 檢查用戶是否為首次登入
-  static Future<bool> isUserFirstLogin(String username) async {
-    final prefs = await SharedPreferences.getInstance();
-    final firstLoginKey = _getUserKey(username, 'first_login');
-    return prefs.getBool(firstLoginKey) ?? true;
+  // 檢查用戶是否已登入
+  static bool isUserLoggedIn() {
+    return _auth.currentUser != null;
   }
 
-  // 標記用戶已登入
-  static Future<void> markUserAsLoggedIn(String username) async {
-    final prefs = await SharedPreferences.getInstance();
-    final firstLoginKey = _getUserKey(username, 'first_login');
-    await prefs.setBool(firstLoginKey, false);
+  // 獲取當前用戶 UID
+  static String? getCurrentUserId() {
+    return _auth.currentUser?.uid;
   }
 
-  // 獲取用戶特定的聊天記錄鍵
-  static String getChatMessagesKey(String username) {
-    return _getUserKey(username, 'chat_messages');
+  // 檢查用戶是否存在
+  static Future<bool> checkUserExists(String email) async {
+    try {
+      // 使用 Firestore 查詢來檢查用戶是否存在
+      final querySnapshot = await _firestore
+          .collection(_usersCollection)
+          .where('email', isEqualTo: email)
+          .limit(1)
+          .get();
+      return querySnapshot.docs.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
   }
 
-  // 獲取用戶特定的AI名稱鍵
-  static String getAiNameKey(String username) {
-    return _getUserKey(username, 'ai_name');
+  // 重設密碼
+  static Future<bool> resetPassword(String email) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+      return true;
+    } on FirebaseAuthException {
+      return false;
+    } catch (_) {
+      return false;
+    }
   }
 
-  // 獲取用戶特定的金幣鍵
-  static String getCoinsKey(String username) {
-    return _getUserKey(username, 'coins');
+  // 刪除用戶帳號
+  static Future<bool> deleteUserAccount() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+
+      // 刪除 Firestore 資料
+      await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .delete();
+
+      // 刪除 Firebase Auth 帳號
+      await user.delete();
+
+      // 清除本地資料
+      await _clearUserDataLocally();
+
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
-  // 獲取用戶特定的已購買物品鍵
-  static String getPurchasedItemsKey(String username) {
-    return _getUserKey(username, 'purchased_items');
+  // 本地儲存用戶資料
+  static Future<void> _saveUserDataLocally(Map<String, dynamic> userData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      // 將 Map 轉換為 JSON 字串進行儲存
+      final userDataJson = userData.map((key, value) {
+        if (value is DateTime) {
+          return MapEntry(key, value.toIso8601String());
+        }
+        return MapEntry(key, value);
+      });
+      final userDataString = userDataJson.toString();
+      await prefs.setString(_userDataKey, userDataString);
+    } catch (_) {
+      // Error saving local user data
+    }
+  }
+
+  // 清除本地用戶資料
+  static Future<void> _clearUserDataLocally() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_userDataKey);
+    } catch (_) {
+      // Error clearing local user data
+    }
+  }
+
+  // 從本地獲取用戶資料
+  static Future<Map<String, dynamic>?> getLocalUserData() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final userDataString = prefs.getString(_userDataKey);
+      if (userDataString != null) {
+        // 這裡需要實作字串到 Map 的轉換
+        // 為了簡化，我們直接從 Firestore 獲取
+        return await getCurrentUserData();
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // 添加設備令牌（用於推送通知）
+  static Future<bool> addDeviceToken(String token) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+
+      await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .update({
+        'deviceTokens': FieldValue.arrayUnion([token]),
+      });
+
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // 移除設備令牌
+  static Future<bool> removeDeviceToken(String token) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return false;
+
+      await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .update({
+        'deviceTokens': FieldValue.arrayRemove([token]),
+      });
+
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 } 

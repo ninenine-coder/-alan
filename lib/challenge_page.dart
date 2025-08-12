@@ -44,7 +44,7 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
         _weeklyTaskStatus = weeklyStatus;
         _isLoading = false;
       });
-    } catch (e, stackTrace) {
+    } catch (e) {
       // 錯誤處理
       setState(() {
         _isLoading = false;
@@ -420,6 +420,8 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
       ),
     );
   }
+
+
 
   @override
   Widget build(BuildContext context) {

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'coin_display.dart';
 import 'data_service.dart';
 import 'dart:io';
@@ -119,7 +118,7 @@ class _MedalPageState extends State<MedalPage> {
           boxShadow: medal.acquired
               ? [
                   BoxShadow(
-                    color: Colors.amber.shade400.withOpacity(0.7),
+                                            color: Colors.amber.shade400.withValues(alpha: 0.7),
                     blurRadius: 10,
                     spreadRadius: 2,
                   )
