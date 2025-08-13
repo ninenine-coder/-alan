@@ -16,6 +16,7 @@ import 'user_service.dart';
 import 'challenge_service.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
+import 'level_up_animation.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -36,6 +37,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
   bool _showWelcomeAnimation = false;
   Map<String, dynamic>? _currentUser;
+  
+
 
   // 動畫控制器
   late AnimationController _typingAnimationController;
@@ -53,6 +56,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     super.initState();
     _initializeAnimations();
     _loadUserData();
+    
+    // 註冊升級回調
+    ExperienceService.addLevelUpCallback(_onLevelUp);
   }
 
   void _initializeAnimations() {
@@ -88,8 +94,19 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     _backgroundAnimationController.repeat();
   }
 
+  /// 處理升級事件
+  void _onLevelUp(int newLevel) {
+    if (mounted) {
+      LoggerService.info('聊天頁面收到升級事件: 等級 $newLevel');
+      LevelUpAnimationManager.instance.showLevelUpAnimation(context, newLevel);
+    }
+  }
+
   @override
   void dispose() {
+    // 移除升級回調
+    ExperienceService.removeLevelUpCallback(_onLevelUp);
+    
     _typingAnimationController.dispose();
     _menuAnimationController.dispose();
     _sendButtonAnimationController.dispose();
@@ -98,11 +115,17 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   Future<void> _loadUserData() async {
+    // 確保用戶資料已初始化
+    await UserService.initializeUserData();
+    
     final userData = await UserService.getCurrentUserData();
     if (userData != null) {
       setState(() {
         _currentUser = userData;
       });
+      
+      // 載入聊天紀錄
+      await _loadMessages();
       
       final loginCount = userData['loginCount'] ?? 0;
       LoggerService.debug('User login count = $loginCount');
@@ -141,19 +164,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       _coinDisplayKey.currentState?.refreshCoins();
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.monetization_on, color: Colors.amber),
-                const SizedBox(width: 8),
-                const Text('成功獲得 500 金幣！'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        _showSuccessSnackBar('成功獲得 500 金幣！');
       }
     }
   }
@@ -174,6 +185,54 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     final messagesKey = 'chat_messages_$username';
     final jsonMessages = _messages.map((m) => jsonEncode(m.toJson())).toList();
     await prefs.setStringList(messagesKey, jsonMessages);
+  }
+
+  Future<void> _loadMessages() async {
+    if (_currentUser == null) return;
+    
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final username = _currentUser!['username'] ?? 'default';
+      final messagesKey = 'chat_messages_$username';
+      final jsonMessages = prefs.getStringList(messagesKey) ?? [];
+      
+      if (jsonMessages.isNotEmpty) {
+        final loadedMessages = <ChatMessage>[];
+        
+        for (final jsonMessage in jsonMessages) {
+          try {
+            final messageData = jsonDecode(jsonMessage) as Map<String, dynamic>;
+            final message = ChatMessage.fromJson(messageData);
+            loadedMessages.add(message);
+          } catch (e) {
+            LoggerService.warning('Failed to parse message: $e');
+          }
+        }
+        
+        if (mounted) {
+          setState(() {
+            _messages.clear();
+            _messages.addAll(loadedMessages);
+          });
+          
+          // 更新 AnimatedList 的項目數量
+          for (int i = 0; i < _messages.length; i++) {
+            _listKey.currentState?.insertItem(i);
+          }
+          
+          // 滾動到底部
+          if (_messages.isNotEmpty) {
+            _scrollToBottom();
+          }
+          
+          LoggerService.info('Loaded ${_messages.length} chat messages');
+        }
+      } else {
+        LoggerService.debug('No saved messages found for user: $username');
+      }
+    } catch (e) {
+      LoggerService.error('Failed to load messages: $e');
+    }
   }
 
   Future<void> _sendMessage(String text) async {
@@ -200,13 +259,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('處理挑戰任務時發生錯誤: $e'),
-              backgroundColor: Colors.orange,
-              duration: const Duration(seconds: 2),
-            ),
-          );
+          _showWarningSnackBar('處理挑戰任務時發生錯誤: $e');
         }
       }
 
@@ -229,13 +282,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       _typingAnimationController.stop();
       
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('發送訊息時發生錯誤: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        _showErrorSnackBar('發送訊息時發生錯誤: $e');
       }
     }
   }
@@ -291,13 +338,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('處理挑戰任務時發生錯誤: $e'),
-                      backgroundColor: Colors.orange,
-                      duration: const Duration(seconds: 2),
-                    ),
-                  );
+                  _showWarningSnackBar('處理挑戰任務時發生錯誤: $e');
                 }
               }
             } else {
@@ -319,26 +360,14 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             _scrollToBottom();
           } catch (e) {
             if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('檢查圖片時發生錯誤: $e'),
-                  backgroundColor: Colors.orange,
-                  duration: const Duration(seconds: 2),
-                ),
-              );
+              _showWarningSnackBar('檢查圖片時發生錯誤: $e');
             }
           }
         }
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('選擇圖片時發生錯誤: $e'),
-            backgroundColor: Colors.red,
-            duration: const Duration(seconds: 3),
-          ),
-        );
+        _showErrorSnackBar('選擇圖片時發生錯誤: $e');
       }
     }
   }
@@ -794,18 +823,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   Widget _buildMenuGrid() {
     return Container(
       padding: const EdgeInsets.all(16),
-      child: Column(
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _buildMenuItem(Icons.pets, '桌寵', Colors.orange),
-              _buildMenuItem(Icons.shopping_bag, '商城', Colors.green),
-              _buildMenuItem(Icons.star, '挑戰任務', Colors.purple),
-              _buildMenuItem(Icons.emoji_events, '勳章', Colors.amber),
-            ],
-          ),
-          const SizedBox(height: 12),
+          _buildMenuItem(Icons.pets, '桌寵', Colors.orange),
+          _buildMenuItem(Icons.shopping_bag, '商城', Colors.green),
+          _buildMenuItem(Icons.star, '挑戰任務', Colors.purple),
+          _buildMenuItem(Icons.emoji_events, '勳章', Colors.amber),
         ],
       ),
     );
@@ -813,7 +837,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Widget _buildMenuItem(IconData icon, String label, Color color) {
     return FutureBuilder<Map<String, dynamic>>(
-      future: ExperienceService.getCurrentExperience(),
+      future: _getUserLevel(),
       builder: (context, snapshot) {
         final currentLevel = snapshot.data?['level'] ?? 1;
         final isUnlocked = _isFeatureUnlocked(label, currentLevel);
@@ -821,85 +845,11 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         
         LoggerService.debug('功能檢查: $label, 當前等級: $currentLevel, 需要等級: $requiredLevel, 已解鎖: $isUnlocked');
         
-        return GestureDetector(
-          onTap: () async {
-            if (!isUnlocked) {
-              _showLevelLockDialog(label, requiredLevel);
-              return;
-            }
-            
-            setState(() {
-              _showMenu = false;
-            });
-            _menuAnimationController.reverse();
-            
-            await Future.delayed(const Duration(milliseconds: 100));
-            
-            if (!mounted) return;
-            
-            try {
-              if (label == '桌寵') {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => PetPage(initialPetName: _aiName)),
-                ).then((newName) {
-                  if (newName != null && newName is String) {
-                    setState(() {
-                      _aiName = newName;
-                      _saveAiName(newName);
-                    });
-                  }
-                  _coinDisplayKey.currentState?.refreshCoins();
-                });
-              } else if (label == '商城') {
-                LoggerService.info('嘗試導航到商城頁面');
-                try {
-                  await Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const StorePage()),
-                  ).then((_) {
-                    LoggerService.info('從商城頁面返回');
-                    _coinDisplayKey.currentState?.refreshCoins();
-                  });
-                } catch (e) {
-                  LoggerService.error('導航到商城頁面時發生錯誤: $e');
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('開啟商城時發生錯誤: $e'),
-                        backgroundColor: Colors.red,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  }
-                }
-              } else if (label == '挑戰任務') {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const ChallengePage()),
-                ).then((_) {
-                  _coinDisplayKey.currentState?.refreshCoins();
-                });
-              } else if (label == '勳章') {
-                await Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const MedalPage()),
-                ).then((_) {
-                  _coinDisplayKey.currentState?.refreshCoins();
-                });
-              }
-            } catch (e) {
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('開啟頁面時發生錯誤: $e'),
-                    backgroundColor: Colors.red,
-                    duration: const Duration(seconds: 3),
-                  ),
-                );
-              }
-            }
-          },
+                 return GestureDetector(
+           onTap: () {
+             LoggerService.info('點擊菜單項: $label');
+             _handleMenuItemTap(label, requiredLevel, isUnlocked);
+           },
           child: Container(
             width: 70,
             height: 70,
@@ -984,6 +934,237 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     return currentLevel >= requiredLevel;
   }
 
+  Future<Map<String, dynamic>> _getUserLevel() async {
+    try {
+      // 優先使用 ExperienceService
+      final experienceData = await ExperienceService.getCurrentExperience();
+      if (experienceData['level'] != null && experienceData['level'] > 0) {
+        return experienceData;
+      }
+      
+      // 如果 ExperienceService 失敗，從當前用戶資料獲取等級
+      if (_currentUser != null) {
+        final userLevel = _currentUser!['level'] ?? 1;
+        return {'level': userLevel, 'experience': 0, 'progress': 0.0};
+      }
+      
+      // 默認返回等級 1
+      return {'level': 1, 'experience': 0, 'progress': 0.0};
+    } catch (e) {
+      LoggerService.error('獲取用戶等級時發生錯誤: $e');
+      // 如果出錯，返回默認等級 1
+      return {'level': 1, 'experience': 0, 'progress': 0.0};
+    }
+  }
+
+  void _handleMenuItemTap(String label, int requiredLevel, bool isUnlocked) {
+    LoggerService.info('點擊菜單項: $label, 需要等級: $requiredLevel, 已解鎖: $isUnlocked');
+    
+    if (!isUnlocked) {
+      LoggerService.info('功能未解鎖，顯示等級鎖定對話框');
+      _showLevelLockDialog(label, requiredLevel);
+      return;
+    }
+    
+    LoggerService.info('功能已解鎖，準備導航到: $label');
+    
+    setState(() {
+      _showMenu = false;
+    });
+    _menuAnimationController.reverse();
+    
+    // 使用 Future.delayed 來避免 context 問題
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (!mounted) {
+        LoggerService.warning('Widget 已卸載，取消導航');
+        return;
+      }
+      LoggerService.info('開始導航到: $label');
+      _navigateToPage(label);
+    });
+  }
+
+  void _navigateToPage(String label) {
+    if (!mounted) {
+      LoggerService.warning('Widget 已卸載，取消導航到: $label');
+      return;
+    }
+    
+    LoggerService.info('_navigateToPage 被調用，目標: $label');
+    
+    try {
+      switch (label) {
+        case '桌寵':
+          LoggerService.info('導航到桌寵頁面');
+          _navigateToPetPage();
+          break;
+        case '商城':
+          LoggerService.info('導航到商城頁面');
+          _navigateToStorePage();
+          break;
+        case '挑戰任務':
+          LoggerService.info('導航到挑戰任務頁面');
+          _navigateToChallengePage();
+          break;
+        case '勳章':
+          LoggerService.info('導航到勳章頁面');
+          _navigateToMedalPage();
+          break;
+        default:
+          LoggerService.warning('未知的導航目標: $label');
+      }
+    } catch (e) {
+      LoggerService.error('開啟頁面時發生錯誤: $e');
+      _showErrorSnackBar('開啟頁面時發生錯誤: $e');
+    }
+  }
+
+  void _navigateToPetPage() {
+    if (!mounted) return;
+    _safeNavigate(() => PetPage(initialPetName: _aiName)).then((newName) {
+      if (!mounted) return;
+      if (newName is String) {
+        setState(() {
+          _aiName = newName;
+          _saveAiName(newName);
+        });
+      }
+      _coinDisplayKey.currentState?.refreshCoins();
+    });
+  }
+
+  void _navigateToStorePage() {
+    if (!mounted) return;
+    LoggerService.info('嘗試導航到商城頁面');
+    
+    try {
+      LoggerService.info('開始創建 MaterialPageRoute');
+      final route = MaterialPageRoute(
+        builder: (context) {
+          LoggerService.info('創建 StorePage 實例');
+          return const StorePage();
+        },
+      );
+      LoggerService.info('MaterialPageRoute 創建成功');
+      
+      LoggerService.info('開始導航');
+      Navigator.of(context).push(route).then((_) {
+        LoggerService.info('導航完成，用戶返回');
+        if (!mounted) {
+          LoggerService.warning('Widget 已卸載，跳過後續處理');
+          return;
+        }
+        LoggerService.info('從商城頁面返回');
+        _coinDisplayKey.currentState?.refreshCoins();
+      }).catchError((error) {
+        LoggerService.error('導航過程中發生錯誤: $error');
+        _showErrorSnackBar('導航過程中發生錯誤: $error');
+      });
+      
+      LoggerService.info('導航請求已發送');
+    } catch (e) {
+      LoggerService.error('導航到商城頁面時發生錯誤: $e');
+      _showErrorSnackBar('導航到商城頁面時發生錯誤: $e');
+    }
+  }
+
+  void _navigateToChallengePage() {
+    if (!mounted) return;
+    _safeNavigate(() => const ChallengePage()).then((_) {
+      if (!mounted) return;
+      _coinDisplayKey.currentState?.refreshCoins();
+    });
+  }
+
+  void _navigateToMedalPage() {
+    if (!mounted) return;
+    _safeNavigate(() => const MedalPage()).then((_) {
+      if (!mounted) return;
+      _coinDisplayKey.currentState?.refreshCoins();
+    });
+  }
+
+  Future<T?> _safeNavigate<T>(Widget Function() pageBuilder) async {
+    if (!mounted) return null;
+    
+    try {
+      return await Navigator.of(context).push<T>(
+        PageRouteBuilder<T>(
+          pageBuilder: (_, animation, __) => pageBuilder(),
+          transitionsBuilder: (_, animation, __, child) =>
+              FadeTransition(opacity: animation, child: child),
+        ),
+      );
+    } catch (e) {
+      LoggerService.error('導航時發生錯誤: $e');
+      _showErrorSnackBar('導航時發生錯誤: $e');
+    }
+    return null;
+  }
+
+  void _showErrorSnackBar(String message) {
+    if (!mounted) return;
+    
+    try {
+      final messenger = ScaffoldMessenger.of(context);
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.error('顯示錯誤訊息時發生錯誤: $e');
+    }
+  }
+
+  void _showSuccessSnackBar(String message) {
+    if (!mounted) return;
+    
+    try {
+      final messenger = ScaffoldMessenger.of(context);
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.monetization_on, color: Colors.amber),
+                const SizedBox(width: 8),
+                Text(message),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.error('顯示成功訊息時發生錯誤: $e');
+    }
+  }
+
+  void _showWarningSnackBar(String message) {
+    if (!mounted) return;
+    
+    try {
+      final messenger = ScaffoldMessenger.of(context);
+      if (messenger.mounted) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.orange,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.error('顯示警告訊息時發生錯誤: $e');
+    }
+  }
+
   int _getRequiredLevel(String feature) {
     switch (feature) {
       case '桌寵':
@@ -993,50 +1174,58 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       case '挑戰任務':
         return 11; // 需要11等才能解鎖挑戰任務
       case '勳章':
-        return 21; // 需要21等才能解鎖勳章
+        return 11; // 需要11等才能解鎖勳章
       default:
         return 1;
     }
   }
 
   void _showLevelLockDialog(String feature, int requiredLevel) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Row(
-          children: [
-            Icon(Icons.lock, color: Colors.red.shade600),
-            const SizedBox(width: 8),
-            Text('功能未解鎖'),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '您需要達到等級 $requiredLevel 才能使用 $feature 功能',
-              style: const TextStyle(fontSize: 16),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              '請繼續提升等級來解鎖更多功能！',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('知道了'),
+    if (!mounted) return;
+    
+    try {
+      showDialog(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.lock, color: Colors.red.shade600),
+              const SizedBox(width: 8),
+              const Text('功能未解鎖'),
+            ],
           ),
-        ],
-      ),
-    );
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '您需要達到等級 $requiredLevel 才能使用 $feature 功能',
+                style: const TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                '請繼續提升等級來解鎖更多功能！',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('知道了'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      LoggerService.error('顯示等級鎖定對話框時發生錯誤: $e');
+    }
   }
+
+
 
   @override
   Widget build(BuildContext context) {
@@ -1060,23 +1249,23 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.2),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
-              ),
-                             child: CircleAvatar(
+             appBar: AppBar(
+         title: Row(
+           children: [
+             Container(
+               width: 32,
+               height: 32,
+               decoration: BoxDecoration(
+                 shape: BoxShape.circle,
+                 boxShadow: [
+                   BoxShadow(
+                     color: Colors.black.withValues(alpha: 0.2),
+                     blurRadius: 8,
+                     offset: const Offset(0, 2),
+                   ),
+                 ],
+               ),
+               child: CircleAvatar(
                  backgroundColor: Colors.blue.shade400,
                  child: Icon(
                    Icons.pets,
@@ -1084,17 +1273,49 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                    size: 20,
                  ),
                ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              _aiName,
-              style: const TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 18,
-              ),
-            ),
-          ],
-        ),
+             ),
+             const SizedBox(width: 12),
+             Column(
+               crossAxisAlignment: CrossAxisAlignment.start,
+               children: [
+                 Text(
+                   _aiName,
+                   style: const TextStyle(
+                     fontWeight: FontWeight.bold,
+                     fontSize: 18,
+                   ),
+                 ),
+                 FutureBuilder<Map<String, dynamic>>(
+                   future: _getUserLevel(),
+                   builder: (context, snapshot) {
+                     final currentLevel = snapshot.data?['level'] ?? 1;
+                     final currentExp = snapshot.data?['experience'] ?? 0;
+                     return Column(
+                       crossAxisAlignment: CrossAxisAlignment.start,
+                       children: [
+                         Text(
+                           '等級 $currentLevel',
+                           style: const TextStyle(
+                             fontSize: 12,
+                             fontWeight: FontWeight.w500,
+                           ),
+                         ),
+                         Text(
+                           '經驗值 $currentExp',
+                           style: const TextStyle(
+                             fontSize: 10,
+                             fontWeight: FontWeight.w400,
+                             color: Colors.white70,
+                           ),
+                         ),
+                       ],
+                     );
+                   },
+                 ),
+               ],
+             ),
+           ],
+         ),
         elevation: 0,
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,

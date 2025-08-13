@@ -1,4 +1,5 @@
 import 'package:logging/logging.dart';
+import 'package:flutter/foundation.dart';
 
 class LoggerService {
   static final Logger _logger = Logger('AppLogger');
@@ -19,13 +20,13 @@ class LoggerService {
       
       // 在開發模式下使用彩色輸出
       if (record.level >= Level.SEVERE) {
-        print('🔴 [$timestamp] $level [$loggerName] $message');
+        debugPrint('🔴 [$timestamp] $level [$loggerName] $message');
       } else if (record.level >= Level.WARNING) {
-        print('🟡 [$timestamp] $level [$loggerName] $message');
+        debugPrint('🟡 [$timestamp] $level [$loggerName] $message');
       } else if (record.level >= Level.INFO) {
-        print('🔵 [$timestamp] $level [$loggerName] $message');
+        debugPrint('🔵 [$timestamp] $level [$loggerName] $message');
       } else {
-        print('⚪ [$timestamp] $level [$loggerName] $message');
+        debugPrint('⚪ [$timestamp] $level [$loggerName] $message');
       }
     });
     

@@ -26,6 +26,15 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
     '飼料': Icons.restaurant,
   };
 
+  // 對應 Firebase 集合名稱
+  final Map<String, String> categoryCollections = {
+    '造型': '造型',
+    '裝飾': '裝飾',
+    '語氣': '語氣',
+    '動作': '動作',
+    '飼料': '飼料',
+  };
+
   Map<String, dynamic>? _currentUser;
   final Map<String, bool> purchasedItems = {};
 
@@ -97,6 +106,13 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
 
   Widget _buildFirebaseProductCard(Map<String, dynamic> product) {
     final isPurchased = purchasedItems[product['id']] == true;
+    final category = product['category'] ?? '未知';
+    final rarity = product['rarity'] ?? '常見';
+    final price = product['price'] ?? 0;
+    final name = product['name'] ?? '未命名商品';
+    final description = product['description'] ?? '';
+    final imageUrl = product['imageUrl'];
+    final iconName = product['iconName'] ?? '';
     
     return Card(
       elevation: 3,
@@ -132,28 +148,20 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
               child: Stack(
                 children: [
                   Center(
-                    child: product['imageUrl'] != null
+                    child: imageUrl != null && imageUrl.isNotEmpty
                         ? ClipRRect(
                             borderRadius: BorderRadius.circular(8),
                             child: Image.network(
-                              product['imageUrl'],
+                              imageUrl,
                               width: double.infinity,
                               height: double.infinity,
                               fit: BoxFit.cover,
                               errorBuilder: (context, error, stackTrace) {
-                                return Icon(
-                                  categoryIcons[product['category']] ?? Icons.shopping_bag,
-                                  size: 48,
-                                  color: Colors.blue.shade600,
-                                );
+                                return _buildCategoryIcon(category, iconName);
                               },
                             ),
                           )
-                        : Icon(
-                            categoryIcons[product['category']] ?? Icons.shopping_bag,
-                            size: 48,
-                            color: Colors.blue.shade600,
-                          ),
+                        : _buildCategoryIcon(category, iconName),
                   ),
                   Positioned(
                     top: 8,
@@ -164,11 +172,11 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: _getRarityColor(product['rarity'] ?? '常見'),
+                        color: _getRarityColor(rarity),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        product['rarity'] ?? '常見',
+                        rarity,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -210,7 +218,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      product['name'] ?? '',
+                      name,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
@@ -220,7 +228,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      product['description'] ?? '',
+                      description,
                       style: TextStyle(
                         color: Colors.grey.shade600,
                         fontSize: 10,
@@ -238,7 +246,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          '${product['price'] ?? 0}',
+                          '$price',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
                             color: Colors.amber.shade700,
@@ -304,9 +312,10 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
   }
 
   Widget _buildFirebaseProductList(String category) {
+    final collectionName = categoryCollections[category] ?? category;
+    
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection('store_items')
-          .where('category', isEqualTo: category)
+      stream: FirebaseFirestore.instance.collection(collectionName)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
@@ -479,7 +488,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                   const Icon(Icons.check_circle, color: Colors.white),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: Text('購買成功！${product['name']} 已加入收藏'),
+                    child: Text('購買成功！${product['name'] ?? '商品'} 已加入收藏'),
                   ),
                 ],
               ),
@@ -504,6 +513,39 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
       }
     }
   }
+
+  Widget _buildCategoryIcon(String category, String iconName) {
+    // 根據類別和圖標名稱返回適當的圖標
+    IconData iconData = categoryIcons[category] ?? Icons.shopping_bag;
+    Color iconColor = Colors.blue.shade600;
+    
+    // 根據類別調整圖標顏色
+    switch (category) {
+      case '造型':
+        iconColor = Colors.purple.shade600;
+        break;
+      case '裝飾':
+        iconColor = Colors.amber.shade600;
+        break;
+      case '語氣':
+        iconColor = Colors.green.shade600;
+        break;
+      case '動作':
+        iconColor = Colors.orange.shade600;
+        break;
+      case '飼料':
+        iconColor = Colors.brown.shade600;
+        break;
+    }
+    
+    return Icon(
+      iconData,
+      size: 48,
+      color: iconColor,
+    );
+  }
+
+
 
   Color _getRarityColor(String rarity) {
     switch (rarity) {

@@ -3,9 +3,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'logger_service.dart';
 
+// 升級回調函數類型
+typedef LevelUpCallback = void Function(int newLevel);
+
 class ExperienceService {
   static const String _experienceKey = 'user_experience';
   static const String _levelKey = 'user_level';
+  
+  // 升級回調列表
+  static final List<LevelUpCallback> _levelUpCallbacks = [];
   
   // 等級經驗值需求配置（未來可能使用）
   // static const Map<String, int> _levelRequirements = {
@@ -22,6 +28,16 @@ class ExperienceService {
     '11': ['challenge_tasks'],                         // 挑戰任務
     '21': ['weekly_tasks', 'rare_items'],              // 每週任務、稀有商品
   };
+
+  /// 註冊升級回調
+  static void addLevelUpCallback(LevelUpCallback callback) {
+    _levelUpCallbacks.add(callback);
+  }
+
+  /// 移除升級回調
+  static void removeLevelUpCallback(LevelUpCallback callback) {
+    _levelUpCallbacks.remove(callback);
+  }
 
   /// 獲取用戶當前經驗值和等級
   static Future<Map<String, dynamic>> getCurrentExperience() async {
@@ -81,6 +97,15 @@ class ExperienceService {
       if (newLevel > currentLevel) {
         LoggerService.info('Level up! New level: $newLevel');
         await _handleLevelUp(newLevel);
+        
+        // 觸發所有升級回調
+        for (final callback in _levelUpCallbacks) {
+          try {
+            callback(newLevel);
+          } catch (e) {
+            LoggerService.error('Error in level up callback: $e');
+          }
+        }
       }
     } catch (e) {
       LoggerService.error('Error adding experience: $e');

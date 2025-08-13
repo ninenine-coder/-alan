@@ -1,6 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'data_service.dart';
 
 class UserService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -192,6 +193,9 @@ class UserService {
   // 登出用戶
   static Future<void> logoutUser() async {
     try {
+      // 同步所有數據到 Firestore
+      await DataService.syncAllDataToFirestore();
+      
       await _auth.signOut();
       await _clearUserDataLocally();
     } catch (_) {
@@ -301,6 +305,84 @@ class UserService {
       return true;
     } catch (_) {
       return false;
+    }
+  }
+
+  // 檢查是否為首次登入
+  static Future<bool> isFirstLogin() async {
+    try {
+      final userData = await getCurrentUserData();
+      if (userData == null) return true;
+      
+      final loginCount = userData['loginCount'] ?? 0;
+      return loginCount <= 1;
+    } catch (e) {
+      return true;
+    }
+  }
+
+  // 初始化用戶資料（用於首次登入）
+  static Future<void> initializeUserData() async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null) return;
+
+      final userDoc = await _firestore
+          .collection(_usersCollection)
+          .doc(user.uid)
+          .get();
+
+      if (!userDoc.exists) {
+        // 創建初始用戶資料
+        final initialUserData = {
+          'uid': user.uid,
+          'email': user.email,
+          'username': user.email?.split('@')[0] ?? 'User',
+          'phone': '',
+          'registrationDate': FieldValue.serverTimestamp(),
+          'lastLoginDate': FieldValue.serverTimestamp(),
+          'loginCount': 1,
+          'coins': 100, // 初始金幣
+          'purchasedItems': [],
+          'earnedMedals': [],
+          'isActive': true,
+          'profileImageUrl': null,
+          'deviceTokens': [],
+          'experience': 0, // 初始經驗值
+          'level': 1, // 初始等級
+          'unlockedFeatures': ['login_reward', 'store'], // 初始解鎖功能
+        };
+
+        await _firestore
+            .collection(_usersCollection)
+            .doc(user.uid)
+            .set(initialUserData);
+
+        await _saveUserDataLocally(initialUserData);
+      }
+    } catch (e) {
+      // 處理初始化錯誤
+    }
+  }
+
+  // 獲取用戶統計資料
+  static Future<Map<String, dynamic>> getUserStats() async {
+    try {
+      final userData = await getCurrentUserData();
+      if (userData == null) return {};
+
+      return {
+        'totalCoins': userData['coins'] ?? 0,
+        'totalPurchases': (userData['purchasedItems'] as List<dynamic>?)?.length ?? 0,
+        'totalMedals': (userData['earnedMedals'] as List<dynamic>?)?.length ?? 0,
+        'loginCount': userData['loginCount'] ?? 0,
+        'level': userData['level'] ?? 1,
+        'experience': userData['experience'] ?? 0,
+        'registrationDate': userData['registrationDate'],
+        'lastLoginDate': userData['lastLoginDate'],
+      };
+    } catch (e) {
+      return {};
     }
   }
 

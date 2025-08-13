@@ -1,57 +1,452 @@
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:convert';
-import 'dart:io';
-import 'dart:developer' as developer;
-import 'package:path_provider/path_provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'logger_service.dart';
 
+class DataService {
+  static const String _purchasedItemsKey = 'purchased_items';
+  static const String _chatMessagesKey = 'chat_messages';
+  static const String _aiNameKey = 'ai_name';
+  static const String _experienceKey = 'user_experience';
+  static const String _levelKey = 'user_level';
+  static const String _unlockedFeaturesKey = 'unlocked_features';
+
+  /// 同步所有用戶數據到 Firestore
+  static Future<void> syncAllDataToFirestore() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      LoggerService.info('開始同步所有數據到 Firestore');
+
+      // 同步購買的商品
+      await _syncPurchasedItems(user.uid);
+      
+      // 同步聊天紀錄
+      await _syncChatMessages(user.uid);
+      
+      // 同步桌寵名稱
+      await _syncAiName(user.uid);
+      
+      // 同步經驗值和等級
+      await _syncExperienceAndLevel(user.uid);
+      
+      // 同步解鎖功能
+      await _syncUnlockedFeatures(user.uid);
+
+      LoggerService.info('所有數據同步完成');
+    } catch (e) {
+      LoggerService.error('同步數據時發生錯誤: $e');
+    }
+  }
+
+  /// 從 Firestore 載入所有數據到本地
+  static Future<void> loadAllDataFromFirestore() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      LoggerService.info('開始從 Firestore 載入所有數據');
+
+      // 載入購買的商品
+      await _loadPurchasedItems(user.uid);
+      
+      // 載入聊天紀錄
+      await _loadChatMessages(user.uid);
+      
+      // 載入桌寵名稱
+      await _loadAiName(user.uid);
+      
+      // 載入經驗值和等級
+      await _loadExperienceAndLevel(user.uid);
+      
+      // 載入解鎖功能
+      await _loadUnlockedFeatures(user.uid);
+
+      LoggerService.info('所有數據載入完成');
+    } catch (e) {
+      LoggerService.error('載入數據時發生錯誤: $e');
+    }
+  }
+
+  /// 同步購買的商品
+  static Future<void> _syncPurchasedItems(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final purchasedItemsJson = prefs.getString('${_purchasedItemsKey}_$userId');
+      
+      if (purchasedItemsJson != null) {
+        final purchasedItems = List<String>.from(
+          (purchasedItemsJson as List<dynamic>).map((item) => item.toString())
+        );
+        
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .update({'purchasedItems': purchasedItems});
+      }
+    } catch (e) {
+      LoggerService.error('同步購買商品時發生錯誤: $e');
+    }
+  }
+
+  /// 載入購買的商品
+  static Future<void> _loadPurchasedItems(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final purchasedItems = List<String>.from(userData['purchasedItems'] ?? []);
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setString('${_purchasedItemsKey}_$userId', purchasedItems.toString());
+      }
+    } catch (e) {
+      LoggerService.error('載入購買商品時發生錯誤: $e');
+    }
+  }
+
+  /// 同步聊天紀錄
+  static Future<void> _syncChatMessages(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final chatMessagesJson = prefs.getString('${_chatMessagesKey}_$userId');
+      
+      if (chatMessagesJson != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .update({'chatMessages': chatMessagesJson});
+      }
+    } catch (e) {
+      LoggerService.error('同步聊天紀錄時發生錯誤: $e');
+    }
+  }
+
+  /// 載入聊天紀錄
+  static Future<void> _loadChatMessages(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final chatMessages = userData['chatMessages'] as String?;
+        
+        if (chatMessages != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('${_chatMessagesKey}_$userId', chatMessages);
+        }
+      }
+    } catch (e) {
+      LoggerService.error('載入聊天紀錄時發生錯誤: $e');
+    }
+  }
+
+  /// 同步桌寵名稱
+  static Future<void> _syncAiName(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final aiName = prefs.getString('${_aiNameKey}_$userId');
+      
+      if (aiName != null) {
+        await FirebaseFirestore.instance
+            .collection('users')
+            .doc(userId)
+            .update({'aiName': aiName});
+      }
+    } catch (e) {
+      LoggerService.error('同步桌寵名稱時發生錯誤: $e');
+    }
+  }
+
+  /// 載入桌寵名稱
+  static Future<void> _loadAiName(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final aiName = userData['aiName'] as String?;
+        
+        if (aiName != null) {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('${_aiNameKey}_$userId', aiName);
+        }
+      }
+    } catch (e) {
+      LoggerService.error('載入桌寵名稱時發生錯誤: $e');
+    }
+  }
+
+  /// 同步經驗值和等級
+  static Future<void> _syncExperienceAndLevel(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final experience = prefs.getInt('${_experienceKey}_$userId') ?? 0;
+      final level = prefs.getInt('${_levelKey}_$userId') ?? 1;
+      
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .update({
+        'experience': experience,
+        'level': level,
+      });
+    } catch (e) {
+      LoggerService.error('同步經驗值和等級時發生錯誤: $e');
+    }
+  }
+
+  /// 載入經驗值和等級
+  static Future<void> _loadExperienceAndLevel(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final experience = userData['experience'] as int? ?? 0;
+        final level = userData['level'] as int? ?? 1;
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('${_experienceKey}_$userId', experience);
+        await prefs.setInt('${_levelKey}_$userId', level);
+      }
+    } catch (e) {
+      LoggerService.error('載入經驗值和等級時發生錯誤: $e');
+    }
+  }
+
+  /// 同步解鎖功能
+  static Future<void> _syncUnlockedFeatures(String userId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final unlockedFeatures = prefs.getStringList('${_unlockedFeaturesKey}_$userId') ?? [];
+      
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .update({'unlockedFeatures': unlockedFeatures});
+    } catch (e) {
+      LoggerService.error('同步解鎖功能時發生錯誤: $e');
+    }
+  }
+
+  /// 載入解鎖功能
+  static Future<void> _loadUnlockedFeatures(String userId) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final unlockedFeatures = List<String>.from(userData['unlockedFeatures'] ?? []);
+        
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setStringList('${_unlockedFeaturesKey}_$userId', unlockedFeatures);
+      }
+    } catch (e) {
+      LoggerService.error('載入解鎖功能時發生錯誤: $e');
+    }
+  }
+
+  /// 獲取購買的商品（按分類）
+  static Future<Map<String, List<StoreItem>>> getPurchasedItemsByCategory(String username) async {
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .where('username', isEqualTo: username)
+          .limit(1)
+          .get();
+      
+      if (userDoc.docs.isNotEmpty) {
+        // 這裡可以根據實際的商品數據結構來組織
+        // 目前返回空的分類映射
+        return {};
+      }
+      return {};
+    } catch (e) {
+      LoggerService.error('獲取購買商品時發生錯誤: $e');
+      return {};
+    }
+  }
+
+  /// 獲取勳章列表
+  static Future<List<Medal>> getMedals() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final medalsJson = prefs.getStringList('medals') ?? [];
+      
+      return medalsJson
+          .map((json) => Medal.fromJson(Map<String, dynamic>.from(json as Map)))
+          .toList();
+    } catch (e) {
+      LoggerService.error('獲取勳章時發生錯誤: $e');
+      return [];
+    }
+  }
+
+  /// 保存用戶數據
+  static Future<void> saveUserData(String username, Map<String, dynamic> userData) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final usersJson = prefs.getStringList('registered_users') ?? [];
+      
+      // 檢查是否已存在該用戶
+      final existingIndex = usersJson.indexWhere((json) {
+        final user = Map<String, dynamic>.from(json as Map);
+        return user['username'] == username;
+      });
+      
+      final userJson = userData.toString();
+      
+      if (existingIndex != -1) {
+        // 更新現有用戶
+        usersJson[existingIndex] = userJson;
+      } else {
+        // 新增用戶
+        usersJson.add(userJson);
+      }
+      
+      await prefs.setStringList('registered_users', usersJson);
+    } catch (e) {
+      LoggerService.error('保存用戶數據時發生錯誤: $e');
+    }
+  }
+
+  /// 備份用戶數據
+  static Future<Map<String, dynamic>> backupUserData() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return {};
+
+      final prefs = await SharedPreferences.getInstance();
+      final backup = {
+        'userId': user.uid,
+        'timestamp': DateTime.now().toIso8601String(),
+        'purchasedItems': prefs.getString('${_purchasedItemsKey}_${user.uid}'),
+        'chatMessages': prefs.getString('${_chatMessagesKey}_${user.uid}'),
+        'aiName': prefs.getString('${_aiNameKey}_${user.uid}'),
+        'experience': prefs.getInt('${_experienceKey}_${user.uid}'),
+        'level': prefs.getInt('${_levelKey}_${user.uid}'),
+        'unlockedFeatures': prefs.getStringList('${_unlockedFeaturesKey}_${user.uid}'),
+      };
+
+      return backup;
+    } catch (e) {
+      LoggerService.error('備份用戶數據時發生錯誤: $e');
+      return {};
+    }
+  }
+
+  /// 恢復用戶數據
+  static Future<bool> restoreUserData(Map<String, dynamic> backup) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      final prefs = await SharedPreferences.getInstance();
+      
+      if (backup['purchasedItems'] != null) {
+        await prefs.setString('${_purchasedItemsKey}_${user.uid}', backup['purchasedItems']);
+      }
+      
+      if (backup['chatMessages'] != null) {
+        await prefs.setString('${_chatMessagesKey}_${user.uid}', backup['chatMessages']);
+      }
+      
+      if (backup['aiName'] != null) {
+        await prefs.setString('${_aiNameKey}_${user.uid}', backup['aiName']);
+      }
+      
+      if (backup['experience'] != null) {
+        await prefs.setInt('${_experienceKey}_${user.uid}', backup['experience']);
+      }
+      
+      if (backup['level'] != null) {
+        await prefs.setInt('${_levelKey}_${user.uid}', backup['level']);
+      }
+      
+      if (backup['unlockedFeatures'] != null) {
+        await prefs.setStringList('${_unlockedFeaturesKey}_${user.uid}', backup['unlockedFeatures']);
+      }
+
+      return true;
+    } catch (e) {
+      LoggerService.error('恢復用戶數據時發生錯誤: $e');
+      return false;
+    }
+  }
+}
+
+/// 商品項目類
 class StoreItem {
   final String id;
   final String name;
+  final String category;
   final int price;
   final String description;
-  final String category;
+  final String? imageUrl;
+  final String? imagePath;
   final String rarity;
   final String iconName;
-  final String? imagePath; // 新增圖片路徑
 
   StoreItem({
     required this.id,
     required this.name,
+    required this.category,
     required this.price,
     required this.description,
-    required this.category,
-    required this.rarity,
-    required this.iconName,
+    this.imageUrl,
     this.imagePath,
+    this.rarity = '常見',
+    this.iconName = '',
   });
-
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'name': name,
-      'price': price,
-      'description': description,
-      'category': category,
-      'rarity': rarity,
-      'iconName': iconName,
-      'imagePath': imagePath,
-    };
-  }
 
   factory StoreItem.fromJson(Map<String, dynamic> json) {
     return StoreItem(
       id: json['id'],
       name: json['name'],
+      category: json['category'],
       price: json['price'],
       description: json['description'],
-      category: json['category'],
-      rarity: json['rarity'],
-      iconName: json['iconName'],
+      imageUrl: json['imageUrl'],
       imagePath: json['imagePath'],
+      rarity: json['rarity'] ?? '常見',
+      iconName: json['iconName'] ?? '',
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'name': name,
+      'category': category,
+      'price': price,
+      'description': description,
+      'imageUrl': imageUrl,
+      'imagePath': imagePath,
+      'rarity': rarity,
+      'iconName': iconName,
+    };
   }
 }
 
+/// 勳章類
 class Medal {
   final String id;
   final String name;
@@ -59,7 +454,7 @@ class Medal {
   final String iconName;
   final String rarity;
   final int requirement;
-  final String? imagePath; // 新增圖片路徑
+  final String? imagePath;
   bool acquired;
 
   Medal({
@@ -97,469 +492,5 @@ class Medal {
       imagePath: json['imagePath'],
       acquired: json['acquired'] ?? false,
     );
-  }
-}
-
-class DataService {
-  // 商城商品管理
-  static Future<List<StoreItem>> getStoreItems() async {
-    final prefs = await SharedPreferences.getInstance();
-    final itemsJson = prefs.getStringList('store_items') ?? [];
-    
-    // 如果沒有商品，初始化預設商品
-    if (itemsJson.isEmpty) {
-      await _initializeDefaultItems();
-      return await getStoreItems(); // 遞歸調用以獲取初始化後的商品
-    }
-    
-    return itemsJson
-        .map((json) => StoreItem.fromJson(jsonDecode(json)))
-        .toList();
-  }
-
-  // 初始化預設商品
-  static Future<void> _initializeDefaultItems() async {
-    final defaultItems = [
-      StoreItem(
-        id: 'pet_style_1',
-        name: '可愛貓咪造型',
-        price: 50,
-        description: '超可愛的貓咪造型，讓你的桌寵更加萌趣',
-        category: '造型',
-        rarity: '常見',
-        iconName: 'cat_style',
-      ),
-      StoreItem(
-        id: 'pet_style_2',
-        name: '帥氣狗狗造型',
-        price: 80,
-        description: '帥氣的狗狗造型，展現你的個性',
-        category: '造型',
-        rarity: '普通',
-        iconName: 'dog_style',
-      ),
-      StoreItem(
-        id: 'decoration_1',
-        name: '彩虹項圈',
-        price: 30,
-        description: '繽紛的彩虹項圈，為桌寵增添色彩',
-        category: '裝飾',
-        rarity: '常見',
-        iconName: 'rainbow_collar',
-      ),
-      StoreItem(
-        id: 'decoration_2',
-        name: '鑽石皇冠',
-        price: 200,
-        description: '閃亮的鑽石皇冠，讓桌寵成為焦點',
-        category: '裝飾',
-        rarity: '稀有',
-        iconName: 'diamond_crown',
-      ),
-      StoreItem(
-        id: 'voice_1',
-        name: '溫柔語調',
-        price: 40,
-        description: '溫柔的語調設定，讓對話更加親切',
-        category: '語氣',
-        rarity: '常見',
-        iconName: 'gentle_voice',
-      ),
-      StoreItem(
-        id: 'voice_2',
-        name: '幽默語調',
-        price: 60,
-        description: '幽默的語調設定，讓對話更加有趣',
-        category: '語氣',
-        rarity: '普通',
-        iconName: 'funny_voice',
-      ),
-      StoreItem(
-        id: 'action_1',
-        name: '跳舞動作',
-        price: 70,
-        description: '可愛的跳舞動作，讓桌寵更加活潑',
-        category: '動作',
-        rarity: '普通',
-        iconName: 'dance_action',
-      ),
-      StoreItem(
-        id: 'action_2',
-        name: '飛翔動作',
-        price: 150,
-        description: '帥氣的飛翔動作，展現桌寵的活力',
-        category: '動作',
-        rarity: '稀有',
-        iconName: 'fly_action',
-      ),
-      StoreItem(
-        id: 'food_1',
-        name: '高級飼料',
-        price: 25,
-        description: '營養豐富的高級飼料，讓桌寵更健康',
-        category: '飼料',
-        rarity: '常見',
-        iconName: 'premium_food',
-      ),
-      StoreItem(
-        id: 'food_2',
-        name: '特製點心',
-        price: 45,
-        description: '美味的特製點心，桌寵的最愛',
-        category: '飼料',
-        rarity: '普通',
-        iconName: 'special_treat',
-      ),
-    ];
-    
-    await saveStoreItems(defaultItems);
-  }
-
-  static Future<void> saveStoreItems(List<StoreItem> items) async {
-    final prefs = await SharedPreferences.getInstance();
-    final itemsJson = items
-        .map((item) => jsonEncode(item.toJson()))
-        .toList();
-    await prefs.setStringList('store_items', itemsJson);
-  }
-
-  static Future<void> addStoreItem(StoreItem item) async {
-    final items = await getStoreItems();
-    items.add(item);
-    await saveStoreItems(items);
-  }
-
-  static Future<void> updateStoreItem(StoreItem updatedItem) async {
-    final items = await getStoreItems();
-    final index = items.indexWhere((item) => item.id == updatedItem.id);
-    if (index != -1) {
-      items[index] = updatedItem;
-      await saveStoreItems(items);
-    }
-  }
-
-  static Future<void> deleteStoreItem(String itemId) async {
-    final items = await getStoreItems();
-    final itemToDelete = items.firstWhere((item) => item.id == itemId);
-    
-    // 刪除相關的圖片檔案
-    if (itemToDelete.imagePath != null) {
-      try {
-        final file = File(itemToDelete.imagePath!);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (e) {
-        // 錯誤處理
-      }
-    }
-    
-    items.removeWhere((item) => item.id == itemId);
-    await saveStoreItems(items);
-  }
-
-  // 圖片管理
-  static Future<String?> saveImage(File imageFile, String itemId) async {
-    try {
-      // 檢查原始圖片檔案是否存在
-      if (!await imageFile.exists()) {
-        throw Exception('原始圖片檔案不存在');
-      }
-      
-      // 檢查檔案大小
-      final fileSize = await imageFile.length();
-      
-      if (fileSize > 10 * 1024 * 1024) { // 10MB 限制
-        throw Exception('圖片檔案太大，請選擇較小的圖片');
-      }
-      
-      final directory = await getApplicationDocumentsDirectory();
-      
-      final imagesDir = Directory('${directory.path}/store_images');
-      
-      // 確保圖片目錄存在
-      if (!await imagesDir.exists()) {
-        await imagesDir.create(recursive: true);
-      }
-      
-      final fileName = '${itemId}_${DateTime.now().millisecondsSinceEpoch}.jpg';
-      final targetPath = '${imagesDir.path}/$fileName';
-      
-      // 複製圖片檔案
-      final savedImage = await imageFile.copy(targetPath);
-      
-      // 驗證檔案是否真的被保存
-      if (await savedImage.exists()) {
-        final savedFileSize = await savedImage.length();
-        
-        if (savedFileSize > 0) {
-          return savedImage.path;
-        } else {
-          developer.log('Error: Saved image file is empty');
-          throw Exception('保存的圖片檔案為空');
-        }
-      } else {
-        developer.log('Error: Saved image file does not exist after copy');
-        throw Exception('圖片保存失敗');
-      }
-    } catch (e) {
-      rethrow; // 重新拋出異常，讓調用者處理
-    }
-  }
-
-  static Future<void> deleteImage(String? imagePath) async {
-    if (imagePath != null) {
-      try {
-        final file = File(imagePath);
-        if (await file.exists()) {
-          await file.delete();
-        }
-      } catch (e) {
-        // 錯誤處理
-      }
-    }
-  }
-
-  // 徽章管理
-  static Future<List<Medal>> getMedals() async {
-    final prefs = await SharedPreferences.getInstance();
-    final medalsJson = prefs.getStringList('medals') ?? [];
-    
-    return medalsJson
-        .map((json) => Medal.fromJson(jsonDecode(json)))
-        .toList();
-  }
-
-  static Future<void> saveMedals(List<Medal> medals) async {
-    final prefs = await SharedPreferences.getInstance();
-    final medalsJson = medals
-        .map((medal) => jsonEncode(medal.toJson()))
-        .toList();
-    await prefs.setStringList('medals', medalsJson);
-  }
-
-  static Future<void> addMedal(Medal medal) async {
-    final medals = await getMedals();
-    medals.add(medal);
-    await saveMedals(medals);
-  }
-
-  static Future<void> updateMedal(Medal updatedMedal) async {
-    final medals = await getMedals();
-    final index = medals.indexWhere((medal) => medal.id == updatedMedal.id);
-    if (index != -1) {
-      medals[index] = updatedMedal;
-      await saveMedals(medals);
-    }
-  }
-
-  static Future<void> deleteMedal(String medalId) async {
-    final medals = await getMedals();
-    medals.removeWhere((medal) => medal.id == medalId);
-    await saveMedals(medals);
-  }
-
-  // 清空所有資料
-  static Future<void> clearAllData() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('store_items');
-    await prefs.remove('medals');
-    
-    // 清空圖片資料夾
-    try {
-      final directory = await getApplicationDocumentsDirectory();
-      final imagesDir = Directory('${directory.path}/store_images');
-      if (await imagesDir.exists()) {
-        await imagesDir.delete(recursive: true);
-      }
-    } catch (e) {
-      // 錯誤處理
-    }
-  }
-
-  // 獲取按類別分組的商品
-  static Future<Map<String, List<StoreItem>>> getStoreItemsByCategory() async {
-    final items = await getStoreItems();
-    final Map<String, List<StoreItem>> groupedItems = {};
-    
-    for (final item in items) {
-      if (!groupedItems.containsKey(item.category)) {
-        groupedItems[item.category] = [];
-      }
-      groupedItems[item.category]!.add(item);
-    }
-    
-    return groupedItems;
-  }
-
-  // 已購買商品管理
-  static Future<List<String>> getPurchasedItems(String username) async {
-    final prefs = await SharedPreferences.getInstance();
-    final purchasedKey = 'purchased_items_$username';
-    return prefs.getStringList(purchasedKey) ?? [];
-  }
-
-  static Future<void> addPurchasedItem(String username, String itemId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final purchasedKey = 'purchased_items_$username';
-    final purchasedItems = await getPurchasedItems(username);
-    
-    if (!purchasedItems.contains(itemId)) {
-      purchasedItems.add(itemId);
-      await prefs.setStringList(purchasedKey, purchasedItems);
-    }
-  }
-
-  static Future<void> removePurchasedItem(String username, String itemId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final purchasedKey = 'purchased_items_$username';
-    final purchasedItems = await getPurchasedItems(username);
-    
-    purchasedItems.remove(itemId);
-    await prefs.setStringList(purchasedKey, purchasedItems);
-  }
-
-  static Future<bool> isItemPurchased(String username, String itemId) async {
-    final purchasedItems = await getPurchasedItems(username);
-    return purchasedItems.contains(itemId);
-  }
-
-  // 獲取已購買的商品詳情
-  static Future<List<StoreItem>> getPurchasedStoreItems(String username) async {
-    final allItems = await getStoreItems();
-    final purchasedItemIds = await getPurchasedItems(username);
-    
-    return allItems.where((item) => purchasedItemIds.contains(item.id)).toList();
-  }
-
-  // 按類別獲取已購買的商品
-  static Future<Map<String, List<StoreItem>>> getPurchasedItemsByCategory(String username) async {
-    final purchasedItems = await getPurchasedStoreItems(username);
-    final Map<String, List<StoreItem>> groupedItems = {};
-    
-    for (final item in purchasedItems) {
-      if (!groupedItems.containsKey(item.category)) {
-        groupedItems[item.category] = [];
-      }
-      groupedItems[item.category]!.add(item);
-    }
-    
-    return groupedItems;
-  }
-
-  // 使用者帳號管理
-  static Future<List<Map<String, dynamic>>> getRegisteredUsers() async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList('registered_users') ?? [];
-    
-    return usersJson
-        .map((json) => jsonDecode(json) as Map<String, dynamic>)
-        .toList();
-  }
-
-  static Future<void> saveUserData(String username, Map<String, dynamic> userData) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList('registered_users') ?? [];
-    
-    // 檢查是否已存在該用戶
-    final existingIndex = usersJson.indexWhere((json) {
-      final user = jsonDecode(json) as Map<String, dynamic>;
-      return user['username'] == username;
-    });
-    
-    final userJson = jsonEncode(userData);
-    
-    if (existingIndex != -1) {
-      // 更新現有用戶
-      usersJson[existingIndex] = userJson;
-    } else {
-      // 新增用戶
-      usersJson.add(userJson);
-    }
-    
-    await prefs.setStringList('registered_users', usersJson);
-  }
-
-  static Future<void> updateUserLoginInfo(String username) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList('registered_users') ?? [];
-    
-    final userIndex = usersJson.indexWhere((json) {
-      final user = jsonDecode(json) as Map<String, dynamic>;
-      return user['username'] == username;
-    });
-    
-    if (userIndex != -1) {
-      final user = jsonDecode(usersJson[userIndex]) as Map<String, dynamic>;
-      user['lastLoginDate'] = DateTime.now().toIso8601String();
-      user['loginCount'] = (user['loginCount'] ?? 0) + 1;
-      
-      usersJson[userIndex] = jsonEncode(user);
-      await prefs.setStringList('registered_users', usersJson);
-    }
-  }
-
-  static Future<void> updateUserCoins(String username, int coins) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList('registered_users') ?? [];
-    
-    final userIndex = usersJson.indexWhere((json) {
-      final user = jsonDecode(json) as Map<String, dynamic>;
-      return user['username'] == username;
-    });
-    
-    if (userIndex != -1) {
-      final user = jsonDecode(usersJson[userIndex]) as Map<String, dynamic>;
-      user['coins'] = coins;
-      
-      usersJson[userIndex] = jsonEncode(user);
-      await prefs.setStringList('registered_users', usersJson);
-    }
-  }
-
-  static Future<void> addUserPurchasedItem(String username, String itemId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList('registered_users') ?? [];
-    
-    final userIndex = usersJson.indexWhere((json) {
-      final user = jsonDecode(json) as Map<String, dynamic>;
-      return user['username'] == username;
-    });
-    
-    if (userIndex != -1) {
-      final user = jsonDecode(usersJson[userIndex]) as Map<String, dynamic>;
-      final purchasedItems = List<String>.from(user['purchasedItems'] ?? []);
-      
-      if (!purchasedItems.contains(itemId)) {
-        purchasedItems.add(itemId);
-        user['purchasedItems'] = purchasedItems;
-        
-        usersJson[userIndex] = jsonEncode(user);
-        await prefs.setStringList('registered_users', usersJson);
-      }
-    }
-  }
-
-  static Future<void> addUserEarnedMedal(String username, String medalId) async {
-    final prefs = await SharedPreferences.getInstance();
-    final usersJson = prefs.getStringList('registered_users') ?? [];
-    
-    final userIndex = usersJson.indexWhere((json) {
-      final user = jsonDecode(json) as Map<String, dynamic>;
-      return user['username'] == username;
-    });
-    
-    if (userIndex != -1) {
-      final user = jsonDecode(usersJson[userIndex]) as Map<String, dynamic>;
-      final earnedMedals = List<String>.from(user['earnedMedals'] ?? []);
-      
-      if (!earnedMedals.contains(medalId)) {
-        earnedMedals.add(medalId);
-        user['earnedMedals'] = earnedMedals;
-        
-        usersJson[userIndex] = jsonEncode(user);
-        await prefs.setStringList('registered_users', usersJson);
-      }
-    }
   }
 } 

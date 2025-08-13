@@ -47,10 +47,10 @@ class ExperienceDisplayState extends State<ExperienceDisplay> {
     }
   }
 
-  /// 開始經驗值計時器（每分鐘增加1經驗）
+  /// 開始經驗值計時器（每分鐘增加10經驗）
   void _startExperienceTimer() {
     _timer = Timer.periodic(const Duration(minutes: 1), (timer) async {
-      await ExperienceService.addExperience(1);
+      await ExperienceService.addExperience(10);
       await _loadExperienceData(); // 重新載入數據
     });
   }
