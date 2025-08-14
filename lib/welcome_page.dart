@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'chat_page.dart';
 import 'user_service.dart';
+import 'login_status_page.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
@@ -29,6 +30,13 @@ class _WelcomePageState extends State<WelcomePage> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const ChatPage()),
+    );
+  }
+
+  void _showLoginStatus() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const LoginStatusPage()),
     );
   }
 
@@ -119,30 +127,58 @@ class _WelcomePageState extends State<WelcomePage> {
                     ),
                   ),
 
-                  // 開始使用按鈕
+                  // 按鈕區域
                   Padding(
                     padding: const EdgeInsets.all(20),
-                    child: SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _startUsing,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
-                          foregroundColor: Colors.blue.shade800,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(25),
+                    child: Column(
+                      children: [
+                        // 開始使用按鈕
+                        SizedBox(
+                          width: double.infinity,
+                          height: 50,
+                          child: ElevatedButton(
+                            onPressed: _startUsing,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: Colors.blue.shade800,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                              elevation: 5,
+                            ),
+                            child: const Text(
+                              '開始使用',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
-                          elevation: 5,
                         ),
-                        child: const Text(
-                          '開始使用',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                        const SizedBox(height: 15),
+                        // 查看登入狀態按鈕
+                        SizedBox(
+                          width: double.infinity,
+                          height: 45,
+                          child: OutlinedButton(
+                            onPressed: _showLoginStatus,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              side: const BorderSide(color: Colors.white, width: 2),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                            ),
+                            child: const Text(
+                              '查看登入狀態',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
+                      ],
                     ),
                   ),
                 ],

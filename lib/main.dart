@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'login_page.dart';
 import 'logger_service.dart';
+import 'experience_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,8 +21,49 @@ Future<void> main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // 當應用程式進入背景或暫停狀態時，計算經驗值
+    if (state == AppLifecycleState.paused || 
+        state == AppLifecycleState.detached) {
+      _handleAppBackground();
+    }
+  }
+
+  Future<void> _handleAppBackground() async {
+    try {
+      // 檢查用戶是否已登入
+      if (FirebaseAuth.instance.currentUser != null) {
+        // 計算並添加基於登入時間的經驗值
+        await ExperienceService.calculateAndAddLoginExperience();
+        LoggerService.info('Experience calculated on app background');
+      }
+    } catch (e) {
+      LoggerService.error('Error handling app background: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

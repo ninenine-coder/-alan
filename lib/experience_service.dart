@@ -9,6 +9,7 @@ typedef LevelUpCallback = void Function(int newLevel);
 class ExperienceService {
   static const String _experienceKey = 'user_experience';
   static const String _levelKey = 'user_level';
+  static const String _loginTimeKey = 'user_login_time';
   
   // 升級回調列表
   static final List<LevelUpCallback> _levelUpCallbacks = [];
@@ -37,6 +38,75 @@ class ExperienceService {
   /// 移除升級回調
   static void removeLevelUpCallback(LevelUpCallback callback) {
     _levelUpCallbacks.remove(callback);
+  }
+
+  /// 記錄用戶登入時間
+  static Future<void> recordLoginTime() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        LoggerService.warning('No authenticated user found for login time recording');
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final loginTime = DateTime.now();
+      
+      // 儲存登入時間到本地
+      await prefs.setString('${_loginTimeKey}_${user.uid}', loginTime.toIso8601String());
+      
+      // 同步到 Firestore
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .update({
+        'lastLoginTime': loginTime,
+        'lastLoginDate': FieldValue.serverTimestamp(),
+      });
+      
+      LoggerService.info('Login time recorded: ${loginTime.toIso8601String()}');
+    } catch (e) {
+      LoggerService.error('Error recording login time: $e');
+    }
+  }
+
+  /// 計算並添加基於登入時間的經驗值
+  static Future<void> calculateAndAddLoginExperience() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        LoggerService.warning('No authenticated user found for experience calculation');
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final loginTimeString = prefs.getString('${_loginTimeKey}_${user.uid}');
+      
+      if (loginTimeString == null) {
+        LoggerService.warning('No login time found for experience calculation');
+        return;
+      }
+
+      final loginTime = DateTime.parse(loginTimeString);
+      final logoutTime = DateTime.now();
+      
+      // 計算登入時長（以分鐘為單位）
+      final duration = logoutTime.difference(loginTime).inMinutes;
+      
+      // 經驗值 = 登入時長 * 10
+      final experienceGained = duration * 10;
+      
+      if (experienceGained > 0) {
+        await addExperience(experienceGained);
+        LoggerService.info('Login experience calculated: $duration minutes = $experienceGained exp');
+      }
+      
+      // 清除登入時間記錄
+      await prefs.remove('${_loginTimeKey}_${user.uid}');
+      
+    } catch (e) {
+      LoggerService.error('Error calculating login experience: $e');
+    }
   }
 
   /// 獲取用戶當前經驗值和等級
@@ -68,7 +138,7 @@ class ExperienceService {
     }
   }
 
-  /// 增加經驗值（每分鐘調用一次）
+  /// 增加經驗值
   static Future<void> addExperience(int amount) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -322,5 +392,37 @@ class ExperienceService {
       'totalExpForLevel': totalExpForLevel,
       'unlockedFeatures': _getUnlockedFeatures(level),
     };
+  }
+
+  /// 獲取當前登入時長（用於顯示）
+  static Future<Duration?> getCurrentLoginDuration() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      final prefs = await SharedPreferences.getInstance();
+      final loginTimeString = prefs.getString('${_loginTimeKey}_${user.uid}');
+      
+      if (loginTimeString == null) return null;
+
+      final loginTime = DateTime.parse(loginTimeString);
+      return DateTime.now().difference(loginTime);
+    } catch (e) {
+      LoggerService.error('Error getting current login duration: $e');
+      return null;
+    }
+  }
+
+  /// 獲取預估經驗值（基於當前登入時長）
+  static Future<int> getEstimatedExperience() async {
+    try {
+      final duration = await getCurrentLoginDuration();
+      if (duration == null) return 0;
+      
+      return duration.inMinutes * 10;
+    } catch (e) {
+      LoggerService.error('Error getting estimated experience: $e');
+      return 0;
+    }
   }
 }
