@@ -4,6 +4,8 @@ import 'chat_page.dart';
 import 'register_page.dart';
 import 'welcome_page.dart';
 import 'user_service.dart';
+import 'data_service.dart';
+import 'logger_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -56,6 +58,15 @@ Future<void> _login() async {
     // 登入成功！
     
     if (!mounted) return;
+
+    // 載入所有用戶數據
+    try {
+      LoggerService.info('開始載入用戶數據');
+      await DataService.loadAllDataFromFirestore();
+      LoggerService.info('用戶數據載入完成');
+    } catch (e) {
+      LoggerService.error('載入用戶數據時發生錯誤: $e');
+    }
 
     // 檢查是否為首次登入
     final loginCount = userData['loginCount'] ?? 0;

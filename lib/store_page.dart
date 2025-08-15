@@ -4,6 +4,7 @@ import 'coin_display.dart';
 import 'user_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'logger_service.dart';
+import 'add_item.dart';
 
 class StorePage extends StatefulWidget {
   const StorePage({super.key});
@@ -12,7 +13,7 @@ class StorePage extends StatefulWidget {
   State<StorePage> createState() => _StorePageState();
 }
 
-class _StorePageState extends State<StorePage> with SingleTickerProviderStateMixin {
+class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   late TabController _tabController;
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
 
@@ -26,15 +27,6 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
     '飼料': Icons.restaurant,
   };
 
-  // 對應 Firebase 集合名稱
-  final Map<String, String> categoryCollections = {
-    '造型': '造型',
-    '裝飾': '裝飾',
-    '語氣': '語氣',
-    '動作': '動作',
-    '飼料': '飼料',
-  };
-
   Map<String, dynamic>? _currentUser;
   final Map<String, bool> purchasedItems = {};
 
@@ -44,6 +36,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
     LoggerService.info('StorePage 初始化開始');
     _tabController = TabController(length: categories.length, vsync: this);
     _loadUserData();
+    _testFirebaseConnection();
     LoggerService.info('StorePage 初始化完成');
   }
 
@@ -54,6 +47,15 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
     await _loadPurchasedItems();
     setState(() {});
     LoggerService.info('StorePage 狀態更新完成');
+  }
+
+  Future<void> _testFirebaseConnection() async {
+    try {
+      LoggerService.info('開始測試 Firebase 連接...');
+      await testReadFirebaseData();
+    } catch (e) {
+      LoggerService.error('Firebase 連接測試失敗: $e');
+    }
   }
 
   Future<void> _loadPurchasedItems() async {
@@ -85,7 +87,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('購買確認'),
-        content: Text('確定要購買「${product['name']}」嗎？價格：${product['price']}'),
+        content: Text('確定要購買「${product['name']}」嗎？價格：${product['價格'] ?? product['price']}'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -104,79 +106,87 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
     }
   }
 
-  Widget _buildFirebaseProductCard(Map<String, dynamic> product) {
-    final isPurchased = purchasedItems[product['id']] == true;
-    final category = product['category'] ?? '未知';
-    final rarity = product['rarity'] ?? '常見';
-    final price = product['price'] ?? 0;
-    final name = product['name'] ?? '未命名商品';
-    final description = product['description'] ?? '';
-    final imageUrl = product['imageUrl'];
-    final iconName = product['iconName'] ?? '';
+  Widget buildItem(DocumentSnapshot item) {
+    final data = item.data() as Map<String, dynamic>;
+    final isPurchased = purchasedItems[item.id] == true;
+    final name = data['name'] ?? '未命名商品';
+    final price = data['價格'] ?? data['price'] ?? 0; // 支援兩種價格欄位名稱
+    final popularity = data['常見度'] ?? data['popularity'] ?? '常見'; // 支援兩種常見度欄位名稱
+    final imageUrl = data['圖片'] ?? data['imageUrl'] ?? ''; // 優先使用中文欄位名稱 '圖片'
+    final description = data['description'] ?? '';
+    
+    // 調試信息
+    LoggerService.info('商品資料: $data');
+    LoggerService.info('商品名稱: $name');
+    LoggerService.info('商品價格: $price');
+    LoggerService.info('商品常見度: $popularity');
+    LoggerService.info('圖片URL: $imageUrl');
     
     return Card(
+      margin: const EdgeInsets.all(8),
       elevation: 3,
-      margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              Colors.white,
-              Colors.grey.shade50,
-            ],
-          ),
-        ),
         child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+          // 圖片區域
             Container(
               height: 120,
+            width: double.infinity,
               decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 gradient: LinearGradient(
-                  colors: [
-                    Colors.blue.shade100,
-                    Colors.blue.shade200,
-                  ],
+                colors: [Colors.blue.shade100, Colors.blue.shade200],
                 ),
               ),
               child: Stack(
                 children: [
                   Center(
-                    child: imageUrl != null && imageUrl.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
+                  child: imageUrl != null && imageUrl.isNotEmpty && imageUrl != '""'
+                      ? GestureDetector(
+                          onTap: () => _showImagePreview(context, imageUrl, name, price),
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                             child: Image.network(
                               imageUrl,
                               width: double.infinity,
                               height: double.infinity,
                               fit: BoxFit.cover,
+                              loadingBuilder: (context, child, loadingProgress) {
+                                if (loadingProgress == null) {
+                                  LoggerService.info('圖片載入成功: $imageUrl');
+                                  return child;
+                                }
+                                LoggerService.info('圖片載入中: $imageUrl, 進度: ${loadingProgress.expectedTotalBytes != null ? (loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes! * 100).toStringAsFixed(1) : '未知'}%');
+                                return Center(
+                                  child: CircularProgressIndicator(
+                                    value: loadingProgress.expectedTotalBytes != null
+                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                        : null,
+                                  ),
+                                );
+                              },
                               errorBuilder: (context, error, stackTrace) {
-                                return _buildCategoryIcon(category, iconName);
+                                LoggerService.error('圖片載入失敗: $imageUrl, 錯誤: $error');
+                                return _buildNoImagePlaceholder();
                               },
                             ),
+                            ),
                           )
-                        : _buildCategoryIcon(category, iconName),
+                      : _buildNoImagePlaceholder(),
                   ),
+                // 稀有度標籤
                   Positioned(
                     top: 8,
                     right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: _getRarityColor(rarity),
+                      color: _getRarityColor(popularity),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
-                        rarity,
+                      popularity,
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 10,
@@ -185,15 +195,13 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                       ),
                     ),
                   ),
+                // 已購買標籤
                   if (isPurchased)
                     Positioned(
                       top: 8,
                       left: 8,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
                           color: Colors.green.shade600,
                           borderRadius: BorderRadius.circular(12),
@@ -211,6 +219,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                 ],
               ),
             ),
+          // 內容區域
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(12),
@@ -236,34 +245,32 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const Spacer(),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.monetization_on,
-                          size: 16,
-                          color: Colors.amber.shade600,
-                        ),
-                        const SizedBox(width: 4),
+                  const SizedBox(height: 4),
                         Text(
-                          '$price',
+                    '價格: $price 元',
                           style: TextStyle(
+                      color: Colors.amber.shade700,
                             fontWeight: FontWeight.bold,
-                            color: Colors.amber.shade700,
-                            fontSize: 16,
-                          ),
-                        ),
-                      ],
+                      fontSize: 12,
                     ),
-                    const SizedBox(height: 8),
+                  ),
+                  Text(
+                    '常見度: $popularity',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 10,
+                    ),
+                  ),
+                  const Spacer(),
+                  // 購買按鈕
                     SizedBox(
                       width: double.infinity,
                       child: isPurchased
                           ? Container(
-                              padding: const EdgeInsets.symmetric(vertical: 12),
+                            padding: const EdgeInsets.symmetric(vertical: 8),
                               decoration: BoxDecoration(
                                 color: Colors.green.shade100,
-                                borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(8),
                                 border: Border.all(color: Colors.green.shade300),
                               ),
                               child: Row(
@@ -280,24 +287,26 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
                                     style: TextStyle(
                                       color: Colors.green.shade700,
                                       fontWeight: FontWeight.bold,
+                                    fontSize: 12,
                                     ),
                                   ),
                                 ],
                               ),
                             )
                           : ElevatedButton(
-                              onPressed: () => _showPurchaseDialog(context, product),
+                            onPressed: () => _showPurchaseDialog(context, {...data, 'id': item.id}),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.blue.shade600,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                                borderRadius: BorderRadius.circular(8),
                                 ),
                                 elevation: 2,
+                              padding: const EdgeInsets.symmetric(vertical: 8),
                               ),
                               child: const Text(
                                 '購買',
-                                style: TextStyle(fontWeight: FontWeight.bold),
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                               ),
                             ),
                     ),
@@ -306,17 +315,17 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
               ),
             ),
           ],
-        ),
       ),
     );
   }
 
-  Widget _buildFirebaseProductList(String category) {
-    final collectionName = categoryCollections[category] ?? category;
+  Widget buildCategoryTab(String category) {
+    LoggerService.info('開始載入類別: $category');
     
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance.collection(collectionName)
-          .snapshots(),
+      stream: FirebaseFirestore.instance
+          .collection(category)
+          .snapshots(), // 移除 orderBy 以避免欄位不存在的問題
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           LoggerService.error('載入商品資料時發生錯誤: ${snapshot.error}');
@@ -343,7 +352,8 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
           );
         }
         
-        if (snapshot.connectionState == ConnectionState.waiting) {
+        if (!snapshot.hasData) {
+          LoggerService.info('正在載入 $category 類別的資料...');
           return const Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -356,9 +366,11 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
           );
         }
         
-        final docs = snapshot.data?.docs ?? [];
+        final items = snapshot.data!.docs;
+        LoggerService.info('$category 類別載入到 ${items.length} 個商品');
 
-        if (docs.isEmpty) {
+        if (items.isEmpty) {
+          LoggerService.info('$category 類別沒有商品資料');
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -385,17 +397,11 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
           );
         }
 
-        final products = docs.map((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          data['id'] = doc.id;
-          return data;
-        }).toList();
-
-        LoggerService.info('載入到 $category 類別的商品: ${products.length} 個');
+        LoggerService.info('載入到 $category 類別的商品: ${items.length} 個');
 
         return GridView.builder(
           padding: const EdgeInsets.all(16),
-          itemCount: products.length,
+          itemCount: items.length,
           gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
             crossAxisCount: 2,
             childAspectRatio: 0.75,
@@ -403,14 +409,13 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
             mainAxisSpacing: 16,
           ),
           itemBuilder: (context, index) {
-            final product = products[index];
             return TweenAnimationBuilder<double>(
               duration: Duration(milliseconds: 300 + (index * 50)),
               tween: Tween(begin: 0.0, end: 1.0),
               builder: (context, value, child) {
                 return Transform.scale(
                   scale: value,
-                  child: _buildFirebaseProductCard(product),
+                  child: buildItem(items[index]),
                 );
               },
             );
@@ -429,7 +434,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
   Future<void> _buyItem(Map<String, dynamic> product) async {
     if (_currentUser == null) return;
     
-    final price = product['price'] ?? 0;
+    final price = product['價格'] ?? product['price'] ?? 0;
     final hasEnoughCoins = await CoinService.hasEnoughCoins(price);
     
     if (!hasEnoughCoins) {
@@ -514,38 +519,168 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
     }
   }
 
-  Widget _buildCategoryIcon(String category, String iconName) {
-    // 根據類別和圖標名稱返回適當的圖標
-    IconData iconData = categoryIcons[category] ?? Icons.shopping_bag;
-    Color iconColor = Colors.blue.shade600;
-    
-    // 根據類別調整圖標顏色
-    switch (category) {
-      case '造型':
-        iconColor = Colors.purple.shade600;
-        break;
-      case '裝飾':
-        iconColor = Colors.amber.shade600;
-        break;
-      case '語氣':
-        iconColor = Colors.green.shade600;
-        break;
-      case '動作':
-        iconColor = Colors.orange.shade600;
-        break;
-      case '飼料':
-        iconColor = Colors.brown.shade600;
-        break;
-    }
-    
-    return Icon(
-      iconData,
-      size: 48,
-      color: iconColor,
+  void _showImagePreview(BuildContext context, String imageUrl, String name, dynamic price) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(16),
+          child: Stack(
+            children: [
+              // 背景遮罩
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(
+                    color: Colors.black.withValues(alpha: 0.8),
+                  ),
+                ),
+              ),
+              // 圖片容器
+              Center(
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.9,
+                    maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Stack(
+                      children: [
+                        // 圖片
+                        Image.network(
+                          imageUrl,
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.contain,
+                          loadingBuilder: (context, child, loadingProgress) {
+                            if (loadingProgress == null) return child;
+                            return Center(
+                              child: CircularProgressIndicator(
+                                value: loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                    : null,
+                                color: Colors.white,
+                              ),
+                            );
+                          },
+                          errorBuilder: (context, error, stackTrace) {
+                            return Container(
+                              color: Colors.grey.shade800,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image,
+                                  color: Colors.white,
+                                  size: 64,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        // 關閉按鈕
+                        Positioned(
+                          top: 16,
+                          right: 16,
+                          child: GestureDetector(
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // 商品資訊（右下角）
+                        Positioned(
+                          bottom: 16,
+                          right: 16,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  name,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '價格: $price 元',
+                                  style: TextStyle(
+                                    color: Colors.amber.shade300,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-
+  Widget _buildNoImagePlaceholder() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_not_supported_outlined, size: 48, color: Colors.grey.shade400),
+          const SizedBox(height: 8),
+          Text(
+            '此商品尚未建立模型',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 12,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
 
   Color _getRarityColor(String rarity) {
     switch (rarity) {
@@ -555,6 +690,12 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
         return Colors.blue.shade400;
       case '常見':
         return Colors.green.shade400;
+      case 'rare':
+        return Colors.purple.shade400;
+      case 'common':
+        return Colors.green.shade400;
+      case 'normal':
+        return Colors.blue.shade400;
       default:
         return Colors.grey.shade400;
     }
@@ -662,7 +803,7 @@ class _StorePageState extends State<StorePage> with SingleTickerProviderStateMix
             Expanded(
               child: TabBarView(
                 controller: _tabController,
-                children: categories.map((category) => _buildFirebaseProductList(category)).toList(),
+                children: categories.map((category) => buildCategoryTab(category)).toList(),
               ),
             ),
           ],

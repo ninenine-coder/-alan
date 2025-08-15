@@ -119,17 +119,68 @@ class ExperienceService {
       }
 
       final prefs = await SharedPreferences.getInstance();
-      final experience = prefs.getInt('${_experienceKey}_${user.uid}') ?? 0;
-      final level = prefs.getInt('${_levelKey}_${user.uid}') ?? 1;
       
-      // 計算當前等級的進度
-      final progress = _calculateProgress(experience, level);
+      // 檢查是否為首次登入
+      final isFirstTime = prefs.getBool('first_time_${user.uid}') ?? true;
       
-      LoggerService.debug('Current experience: $experience, level: $level, progress: $progress');
+      if (isFirstTime) {
+        // 首次登入，設置初始值
+        await prefs.setInt('${_experienceKey}_${user.uid}', 0);
+        await prefs.setInt('${_levelKey}_${user.uid}', 1);
+        await prefs.setBool('first_time_${user.uid}', false);
+        
+        // 同步到 Firestore
+        await _syncToFirestore(user.uid, 0, 1);
+        
+        LoggerService.info('First time user, initialized experience to 0');
+        return {'experience': 0, 'level': 1, 'progress': 0.0};
+      }
+      
+      // 非首次登入，從本地和 Firestore 獲取數據
+      final localExp = prefs.getInt('${_experienceKey}_${user.uid}') ?? 0;
+      final localLevel = prefs.getInt('${_levelKey}_${user.uid}') ?? 1;
+      
+      // 嘗試從 Firestore 獲取最新數據
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final firestoreExp = userData['experience'] ?? 0;
+          
+          // 使用較新的數據
+          final finalExp = firestoreExp > localExp ? firestoreExp : localExp;
+          final finalLevel = _calculateLevel(finalExp);
+          
+          // 更新本地數據
+          await prefs.setInt('${_experienceKey}_${user.uid}', finalExp);
+          await prefs.setInt('${_levelKey}_${user.uid}', finalLevel);
+          
+          final progress = _calculateProgress(finalExp, finalLevel);
+          
+          LoggerService.debug('Experience loaded: $finalExp, level: $finalLevel, progress: $progress');
+          
+          return {
+            'experience': finalExp,
+            'level': finalLevel,
+            'progress': progress,
+          };
+        }
+      } catch (e) {
+        LoggerService.warning('Failed to load from Firestore, using local data: $e');
+      }
+      
+      // 如果 Firestore 失敗，使用本地數據
+      final progress = _calculateProgress(localExp, localLevel);
+      
+      LoggerService.debug('Using local experience data: $localExp, level: $localLevel, progress: $progress');
       
       return {
-        'experience': experience,
-        'level': level,
+        'experience': localExp,
+        'level': localLevel,
         'progress': progress,
       };
     } catch (e) {

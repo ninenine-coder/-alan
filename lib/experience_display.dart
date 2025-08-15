@@ -5,8 +5,13 @@ import 'logger_service.dart';
 
 class ExperienceDisplay extends StatefulWidget {
   final GlobalKey<ExperienceDisplayState>? displayKey;
+  final bool isCompact; // 新增：是否為緊湊模式（用於AppBar）
 
-  const ExperienceDisplay({this.displayKey, super.key});
+  const ExperienceDisplay({
+    this.displayKey, 
+    this.isCompact = false, // 預設為完整模式
+    super.key,
+  });
 
   @override
   State<ExperienceDisplay> createState() => ExperienceDisplayState();
@@ -72,6 +77,55 @@ class ExperienceDisplayState extends State<ExperienceDisplay> {
     final totalExpForLevel = levelInfo['totalExpForLevel'] as int;
     final currentLevelExp = experience - totalExpForLevel;
     
+    // 如果是緊湊模式，使用簡化的顯示
+    if (widget.isCompact) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 等級圖標
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                color: _getLevelColor(level),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Center(
+                child: Text(
+                  '$level',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            
+            // 進度條
+            SizedBox(
+              width: 40,
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 4,
+                backgroundColor: Colors.white.withValues(alpha: 0.3),
+                valueColor: AlwaysStoppedAnimation<Color>(_getLevelColor(level)),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    
+    // 完整模式
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(

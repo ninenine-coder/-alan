@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'chat_message.dart';
@@ -17,6 +18,8 @@ import 'challenge_service.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
 import 'level_up_animation.dart';
+import 'experience_display.dart';
+import 'metro_quiz_page.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -35,8 +38,12 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   String _aiName = '傑米';
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
+  final GlobalKey<ExperienceDisplayState> _experienceDisplayKey = GlobalKey<ExperienceDisplayState>();
   bool _showWelcomeAnimation = false;
   Map<String, dynamic>? _currentUser;
+  
+  // 預載入的 HTML 內容
+  String? _metroQuizHtml;
   
 
 
@@ -56,6 +63,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     super.initState();
     _initializeAnimations();
     _loadUserData();
+    _preloadMetroQuizHtml(); // 預載入捷運知識王 HTML
     
     // 註冊升級回調
     ExperienceService.addLevelUpCallback(_onLevelUp);
@@ -112,6 +120,17 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     _sendButtonAnimationController.dispose();
     _backgroundAnimationController.dispose();
     super.dispose();
+  }
+
+  Future<void> _preloadMetroQuizHtml() async {
+    try {
+      LoggerService.info('開始預載入捷運知識王 HTML');
+      _metroQuizHtml = await rootBundle.loadString('assets/捷運知識王/index.html');
+      LoggerService.info('捷運知識王 HTML 預載入完成');
+    } catch (e) {
+      LoggerService.error('預載入捷運知識王 HTML 失敗: $e');
+      _metroQuizHtml = null;
+    }
   }
 
   Future<void> _loadUserData() async {
@@ -826,8 +845,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          _buildMenuItem(Icons.pets, '桌寵', Colors.orange),
+          _buildMenuItem(Icons.train, '捷運知識王', Colors.blue),
           _buildMenuItem(Icons.shopping_bag, '商城', Colors.green),
+          _buildMenuItem(Icons.pets, '桌寵', Colors.orange),
           _buildMenuItem(Icons.star, '挑戰任務', Colors.purple),
           _buildMenuItem(Icons.emoji_events, '勳章', Colors.amber),
         ],
@@ -1010,6 +1030,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           LoggerService.info('導航到勳章頁面');
           _navigateToMedalPage();
           break;
+        case '捷運知識王':
+          LoggerService.info('導航到捷運知識王頁面');
+          _navigateToMetroQuizPage();
+          break;
         default:
           LoggerService.warning('未知的導航目標: $label');
       }
@@ -1079,6 +1103,14 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   void _navigateToMedalPage() {
     if (!mounted) return;
     _safeNavigate(() => const MedalPage()).then((_) {
+      if (!mounted) return;
+      _coinDisplayKey.currentState?.refreshCoins();
+    });
+  }
+
+  void _navigateToMetroQuizPage() {
+    if (!mounted) return;
+    _safeNavigate(() => MetroQuizPage(htmlString: _metroQuizHtml)).then((_) {
       if (!mounted) return;
       _coinDisplayKey.currentState?.refreshCoins();
     });
@@ -1175,6 +1207,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         return 11; // 需要11等才能解鎖挑戰任務
       case '勳章':
         return 11; // 需要11等才能解鎖勳章
+      case '捷運知識王':
+        return 0; // 登入就可以玩捷運知識王
       default:
         return 1;
     }
@@ -1285,32 +1319,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                      fontSize: 18,
                    ),
                  ),
-                 FutureBuilder<Map<String, dynamic>>(
-                   future: _getUserLevel(),
-                   builder: (context, snapshot) {
-                     final currentLevel = snapshot.data?['level'] ?? 1;
-                     final currentExp = snapshot.data?['experience'] ?? 0;
-                     return Column(
-                       crossAxisAlignment: CrossAxisAlignment.start,
-                       children: [
-                         Text(
-                           '等級 $currentLevel',
-                           style: const TextStyle(
-                             fontSize: 12,
-                             fontWeight: FontWeight.w500,
-                           ),
-                         ),
-                         Text(
-                           '經驗值 $currentExp',
-                           style: const TextStyle(
-                             fontSize: 10,
-                             fontWeight: FontWeight.w400,
-                             color: Colors.white70,
-                           ),
-                         ),
-                       ],
-                     );
-                   },
+                 ExperienceDisplay(
+                   key: _experienceDisplayKey,
+                   isCompact: true,
                  ),
                ],
              ),

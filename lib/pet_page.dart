@@ -6,7 +6,7 @@ import 'user_service.dart';
 import 'data_service.dart';
 import 'challenge_service.dart';
 import 'logger_service.dart';
-import 'experience_service.dart';
+import 'experience_display.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -20,9 +20,6 @@ class PetPage extends StatefulWidget {
 class _PetPageState extends State<PetPage> {
   late TextEditingController _controller;
   late String petName;
-  double experience = 0.0; // 初始經驗值為0
-  int currentLevel = 1; // 當前等級
-  int totalExperience = 0; // 總經驗值
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
   Map<String, List<StoreItem>> purchasedItemsByCategory = {};
   bool _isInteracting = false;
@@ -34,7 +31,6 @@ class _PetPageState extends State<PetPage> {
     _controller = TextEditingController(text: petName);
     _loadPetName();
     _loadPurchasedItems();
-    _loadExperienceData();
   }
 
   Future<void> _loadPetName() async {
@@ -73,35 +69,6 @@ class _PetPageState extends State<PetPage> {
     await prefs.setString(aiNameKey, name);
   }
 
-  /// 載入經驗值數據
-  Future<void> _loadExperienceData() async {
-    try {
-      final experienceData = await ExperienceService.getCurrentExperience();
-      if (mounted) {
-        setState(() {
-          experience = experienceData['progress'] as double;
-          currentLevel = experienceData['level'] as int;
-          totalExperience = experienceData['experience'] as int;
-        });
-      }
-    } catch (e) {
-      LoggerService.error('Error loading experience data in pet page: $e');
-    }
-  }
-
-  /// 根據等級獲取顏色
-  Color _getLevelColor(int level) {
-    if (level <= 5) {
-      return Colors.green.shade600; // 新手綠色
-    } else if (level <= 10) {
-      return Colors.blue.shade600; // 進階藍色
-    } else if (level <= 20) {
-      return Colors.purple.shade600; // 專家紫色
-    } else {
-      return Colors.orange.shade600; // 大師橙色
-    }
-  }
-
   // 處理桌寵互動
   Future<void> _handlePetInteraction() async {
     if (_isInteracting) return; // 防止重複點擊
@@ -116,9 +83,6 @@ class _PetPageState extends State<PetPage> {
       if (interactionReward) {
         // 刷新金幣顯示
         _coinDisplayKey.currentState?.refreshCoins();
-        
-        // 刷新經驗值數據
-        await _loadExperienceData();
         
         // 顯示成功訊息
         if (mounted) {
@@ -229,46 +193,7 @@ class _PetPageState extends State<PetPage> {
                 // 經驗值條
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: Column(
-                    children: [
-                      // 等級和經驗值信息
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            '等級 $currentLevel',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: _getLevelColor(currentLevel),
-                            ),
-                          ),
-                          Text(
-                            '總經驗: $totalExperience',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey.shade600,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      LinearProgressIndicator(
-                        value: experience,
-                        minHeight: 10,
-                        backgroundColor: Colors.grey.shade300,
-                        valueColor: AlwaysStoppedAnimation<Color>(_getLevelColor(currentLevel)),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '經驗值：${(experience * 100).toInt()}%',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.grey.shade700,
-                        ),
-                      ),
-                    ],
-                  ),
+                  child: ExperienceDisplay(),
                 ),
 
                 const SizedBox(height: 12),

@@ -45,10 +45,31 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     
-    // 當應用程式進入背景或暫停狀態時，計算經驗值
-    if (state == AppLifecycleState.paused || 
-        state == AppLifecycleState.detached) {
-      _handleAppBackground();
+    switch (state) {
+      case AppLifecycleState.resumed:
+        // 應用程序恢復時，記錄登入時間
+        _handleAppResumed();
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        // 當應用程式進入背景或暫停狀態時，計算經驗值
+        _handleAppBackground();
+        break;
+      default:
+        break;
+    }
+  }
+
+  Future<void> _handleAppResumed() async {
+    try {
+      // 檢查用戶是否已登入
+      if (FirebaseAuth.instance.currentUser != null) {
+        // 記錄登入時間
+        await ExperienceService.recordLoginTime();
+        LoggerService.info('Login time recorded on app resumed');
+      }
+    } catch (e) {
+      LoggerService.error('Error handling app resumed: $e');
     }
   }
 

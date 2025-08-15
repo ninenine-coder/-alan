@@ -43,6 +43,7 @@ dependencies:
   firebase_storage: ^13.0.0
   firebase_database: ^12.0.0
   cloud_firestore: ^6.0.0
+  webview_flutter: ^4.2.1
 
 dev_dependencies:
   flutter_test:
@@ -70,6 +71,7 @@ flutter:
   assets:
     - assets/images/
     - assets/app_images/
+    - assets/捷運知識王/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
