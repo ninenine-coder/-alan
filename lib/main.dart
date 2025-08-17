@@ -3,6 +3,8 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'login_page.dart';
+import 'chat_page.dart';
+import 'pet_page.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
 
@@ -92,7 +94,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       title: '捷米小助手',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
-      home: const MainSelectionPage(),
+      initialRoute: '/',
+      routes: {
+        '/': (context) => const MainSelectionPage(),
+        '/chat': (context) => const ChatPage(),
+        '/pet': (context) => const PetPage(initialPetName: '捷米'),
+      },
     );
   }
 }

@@ -1,12 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'dart:io';
 import 'coin_display.dart';
 import 'user_service.dart';
-import 'data_service.dart';
 import 'challenge_service.dart';
 import 'logger_service.dart';
-import 'experience_display.dart';
+import 'experience_service.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -17,20 +15,27 @@ class PetPage extends StatefulWidget {
   State<PetPage> createState() => _PetPageState();
 }
 
-class _PetPageState extends State<PetPage> {
-  late TextEditingController _controller;
+class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
   late String petName;
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
-  Map<String, List<StoreItem>> purchasedItemsByCategory = {};
   bool _isInteracting = false;
+  late AnimationController _backButtonController;
+  late Animation<double> _backButtonAnimation;
 
   @override
   void initState() {
     super.initState();
     petName = widget.initialPetName;
-    _controller = TextEditingController(text: petName);
     _loadPetName();
-    _loadPurchasedItems();
+    
+    // 初始化返回鍵動畫
+    _backButtonController = AnimationController(
+      duration: const Duration(milliseconds: 150),
+      vsync: this,
+    );
+    _backButtonAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
+      CurvedAnimation(parent: _backButtonController, curve: Curves.easeInOut),
+    );
   }
 
   Future<void> _loadPetName() async {
@@ -43,31 +48,10 @@ class _PetPageState extends State<PetPage> {
     final savedName = prefs.getString(aiNameKey) ?? widget.initialPetName;
     setState(() {
       petName = savedName;
-      _controller.text = petName;
     });
   }
 
-  Future<void> _loadPurchasedItems() async {
-    final userData = await UserService.getCurrentUserData();
-    if (userData == null) return;
-    
-    final username = userData['username'] ?? 'default';
-    final purchasedItems = await DataService.getPurchasedItemsByCategory(username);
-    
-    setState(() {
-      purchasedItemsByCategory = purchasedItems;
-    });
-  }
 
-  Future<void> _savePetName(String name) async {
-    final userData = await UserService.getCurrentUserData();
-    if (userData == null) return;
-    
-    final username = userData['username'] ?? 'default';
-    final prefs = await SharedPreferences.getInstance();
-    final aiNameKey = 'ai_name_$username';
-    await prefs.setString(aiNameKey, name);
-  }
 
   // 處理桌寵互動
   Future<void> _handlePetInteraction() async {
@@ -117,233 +101,401 @@ class _PetPageState extends State<PetPage> {
 
   @override
   void dispose() {
-    _controller.dispose();
+    _backButtonController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('我的桌寵'),
-        centerTitle: true,
-        actions: [
-          CoinDisplay(key: _coinDisplayKey),
-          const SizedBox(width: 16),
-        ],
+      backgroundColor: Colors.white,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // 頂部狀態欄
+            _buildStatusBar(),
+            
+            // 用戶資料區域
+            _buildUserProfileSection(),
+            
+            // 中央寵物角色
+            Expanded(
+              child: _buildPetCharacter(),
+            ),
+            
+                         // 任務清單區域
+             _buildTaskListSection(),
+          ],
+        ),
       ),
-      body: Column(
+    );
+  }
+
+  Widget _buildStatusBar() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
         children: [
-          // 上半部：桌寵 + 經驗條 + 命名
-          Expanded(
-            flex: 1,
-            child: Column(
-              children: [
-                const SizedBox(height: 10),
-                // 模型預留區
-                Expanded(
-                  child: GestureDetector(
-                    onTap: _handlePetInteraction,
-                    child: Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.symmetric(horizontal: 20),
-                      decoration: BoxDecoration(
-                        color: _isInteracting ? Colors.blue.shade100 : Colors.grey.shade300,
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: _isInteracting ? Colors.blue.shade300 : Colors.grey.shade400,
-                          width: 2,
-                        ),
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            _isInteracting ? Icons.pets : Icons.pets_outlined,
-                            size: 64,
-                            color: _isInteracting ? Colors.blue.shade600 : Colors.grey.shade600,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _isInteracting ? '互動中...' : '點擊與桌寵互動',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: _isInteracting ? Colors.blue.shade600 : Colors.grey.shade600,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (_isInteracting) ...[
-                            const SizedBox(height: 8),
-                            const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-                              ),
-                            ),
-                          ],
-                        ],
-                      ),
+          // 返回鍵
+          GestureDetector(
+            onTapDown: (_) => _backButtonController.forward(),
+            onTapUp: (_) => _backButtonController.reverse(),
+            onTapCancel: () => _backButtonController.reverse(),
+            onTap: () {
+              Navigator.pushNamed(context, '/chat');
+            },
+            child: ScaleTransition(
+              scale: _backButtonAnimation,
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 4,
+                      offset: const Offset(0, 2),
                     ),
-                  ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-
-                // 經驗值條
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: ExperienceDisplay(),
+                child: Icon(
+                  Icons.arrow_back_ios,
+                  size: 18,
+                  color: Colors.blue[600],
                 ),
-
-                const SizedBox(height: 12),
-
-                // 改名輸入欄
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
-                  child: TextField(
-                    controller: _controller,
-                    decoration: const InputDecoration(
-                      border: OutlineInputBorder(),
-                      labelText: '輸入桌寵名稱',
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 10),
-
-                ElevatedButton(
-                  onPressed: () async {
-                    final newName = _controller.text.trim();
-                    if (newName.isNotEmpty) {
-                      await _savePetName(newName); // 保存新名稱
-                      if (mounted) {
-                        setState(() {
-                          petName = newName;
-                        });
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          Navigator.pop(context, newName); // 回傳新名字
-                        });
-                      }
-                    } else {
-                      if (mounted) {
-                        WidgetsBinding.instance.addPostFrameCallback((_) {
-                          Navigator.pop(context);
-                        });
-                      }
-                    }
-                  },
-                  child: const Text('確定'),
-                ),
-
-                const SizedBox(height: 10),
-
-                Text('目前名稱：$petName'),
-              ],
+              ),
             ),
           ),
-
-          const Divider(thickness: 1),
-
-          // 下半部：收藏區
-          Expanded(
-            flex: 1,
-            child: GridView.count(
-              crossAxisCount: 2,
-              padding: const EdgeInsets.all(16),
-              crossAxisSpacing: 12,
-              mainAxisSpacing: 12,
-              children: [
-                _buildCollectionCard('造型', Icons.brush),
-                _buildCollectionCard('裝飾', Icons.emoji_objects),
-                _buildCollectionCard('語氣', Icons.record_voice_over),
-                _buildCollectionCard('動作', Icons.directions_run),
-                _buildCollectionCard('飼料', Icons.fastfood),
-              ],
+          const SizedBox(width: 12),
+          // 時間
+          Text(
+            '10:31',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.grey[800],
             ),
+          ),
+          const Spacer(),
+          // 右側圖標
+          Row(
+            children: [
+              Icon(Icons.signal_cellular_4_bar, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 4),
+              Icon(Icons.wifi, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 4),
+              Icon(Icons.battery_full, size: 16, color: Colors.grey[600]),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Widget _buildCollectionCard(String title, IconData icon) {
-    final items = purchasedItemsByCategory[title] ?? [];
-    
-    return GestureDetector(
-      onTap: () {
-        if (items.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _showCategoryItems(title, items);
-          });
-        }
-      },
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.indigo.shade50,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.indigo.shade100),
-        ),
-        child: Stack(
-          children: [
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(icon, size: 40, color: Colors.indigo),
-                  const SizedBox(height: 8),
-                  Text(title, style: const TextStyle(fontSize: 16)),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${items.length} 個已擁有',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.indigo.shade600,
-                      fontWeight: FontWeight.bold,
+  Widget _buildUserProfileSection() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          // 左側：用戶頭像
+          CircleAvatar(
+            radius: 20,
+            backgroundColor: Colors.grey[300],
+            child: Icon(Icons.person, color: Colors.grey[600]),
+          ),
+          const SizedBox(width: 12),
+          
+          // 中間：用戶名稱和等級
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      petName,
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
                     ),
+                    const SizedBox(width: 8),
+                    FutureBuilder<Map<String, dynamic>>(
+                      future: ExperienceService.getCurrentExperience(),
+                      builder: (context, snapshot) {
+                        final level = snapshot.hasData ? snapshot.data!['level'] as int : 1;
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.blue[600],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Lv.$level',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                // 經驗條 - 簡化版本
+                Container(
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: Colors.grey[300],
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: FutureBuilder<Map<String, dynamic>>(
+                    future: ExperienceService.getCurrentExperience(),
+                    builder: (context, snapshot) {
+                      if (snapshot.hasData) {
+                        final progress = snapshot.data!['progress'] as double;
+                        return FractionallySizedBox(
+                          alignment: Alignment.centerLeft,
+                          widthFactor: progress,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue[600],
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                          ),
+                        );
+                      }
+                      return FractionallySizedBox(
+                        alignment: Alignment.centerLeft,
+                        widthFactor: 0.0,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.blue[600],
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // 右側：金幣顯示
+          CoinDisplay(key: _coinDisplayKey),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPetCharacter() {
+    return GestureDetector(
+      onTap: _handlePetInteraction,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 寵物角色容器
+            Container(
+              width: 200,
+              height: 200,
+              decoration: BoxDecoration(
+                color: Colors.lightBlue[50],
+                borderRadius: BorderRadius.circular(100),
+                                 boxShadow: [
+                   BoxShadow(
+                     color: Colors.blue.withValues(alpha: 0.2),
+                     blurRadius: 20,
+                     offset: const Offset(0, 10),
+                   ),
+                 ],
+              ),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  // 雲朵形狀背景
+                  Positioned(
+                    bottom: 20,
+                    child: Container(
+                      width: 160,
+                      height: 60,
+                      decoration: BoxDecoration(
+                        color: Colors.lightBlue[200],
+                        borderRadius: BorderRadius.circular(30),
+                      ),
+                    ),
+                  ),
+                  // 寵物角色
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      // 帽子
+                      Container(
+                        width: 80,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          color: Colors.blue[600],
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'G',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // 臉部
+                      Container(
+                        width: 60,
+                        height: 60,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(30),
+                        ),
+                        child: Stack(
+                          children: [
+                            // 耳朵
+                            Positioned(
+                              top: -5,
+                              left: -5,
+                              child: Container(
+                                width: 25,
+                                height: 35,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            Positioned(
+                              top: -5,
+                              right: -5,
+                              child: Container(
+                                width: 25,
+                                height: 35,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            ),
+                            // 臉部特徵
+                            Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  // 眼睛
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Container(
+                                        width: 8,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: Colors.black,
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  // 臉頰
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Container(
+                                        width: 12,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: Colors.pink[200],
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Container(
+                                        width: 12,
+                                        height: 8,
+                                        decoration: BoxDecoration(
+                                          color: Colors.pink[200],
+                                          borderRadius: BorderRadius.circular(4),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  // 嘴巴
+                                  Container(
+                                    width: 20,
+                                    height: 12,
+                                    decoration: BoxDecoration(
+                                      color: Colors.pink[300],
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      // 身體
+                      Container(
+                        width: 70,
+                        height: 50,
+                        decoration: BoxDecoration(
+                          color: Colors.blue[400],
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        child: Stack(
+                          children: [
+                            // 綠色包包
+                            Positioned(
+                              right: -5,
+                              top: 5,
+                              child: Container(
+                                width: 25,
+                                height: 35,
+                                decoration: BoxDecoration(
+                                  color: Colors.green[400],
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-            // 如果有已購買的商品，顯示第一個商品的圖片作為預覽
-            if (items.isNotEmpty)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.indigo.shade300, width: 2),
-                  ),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(6),
-                    child: items.first.imagePath != null
-                        ? Image.file(
-                            File(items.first.imagePath!),
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return Container(
-                                color: Colors.indigo.shade100,
-                                child: Icon(
-                                  icon,
-                                  size: 20,
-                                  color: Colors.indigo.shade600,
-                                ),
-                              );
-                            },
-                          )
-                        : Container(
-                            color: Colors.indigo.shade100,
-                            child: Icon(
-                              icon,
-                              size: 20,
-                              color: Colors.indigo.shade600,
-                            ),
-                          ),
-                  ),
-                ),
+            const SizedBox(height: 20),
+            // 互動提示
+            if (_isInteracting)
+              const CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
               ),
           ],
         ),
@@ -351,183 +503,101 @@ class _PetPageState extends State<PetPage> {
     );
   }
 
-  void _showCategoryItems(String category, List<StoreItem> items) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('我的$category'),
-        content: SizedBox(
-          width: double.maxFinite,
-          height: 400,
-          child: GridView.builder(
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              childAspectRatio: 0.8,
+  Widget _buildTaskListSection() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.grey[100],
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '我的背包',
+            style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: Colors.black87,
             ),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.indigo.shade200),
-                  color: Colors.indigo.shade50,
-                ),
-                child: Stack(
-                  children: [
-                    Column(
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: Container(
-                            width: double.infinity,
-                            decoration: const BoxDecoration(
-                              borderRadius: BorderRadius.vertical(
-                                top: Radius.circular(12),
-                              ),
-                              color: Colors.white,
-                            ),
-                            child: ClipRRect(
-                              borderRadius: const BorderRadius.vertical(
-                                top: Radius.circular(12),
-                              ),
-                              child: item.imagePath != null
-                                  ? Image.file(
-                                      File(item.imagePath!),
-                                      fit: BoxFit.cover,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      errorBuilder: (context, error, stackTrace) {
-                                        return Container(
-                                          color: Colors.indigo.shade100,
-                                          child: Icon(
-                                            _getCategoryIcon(item.category),
-                                            size: 32,
-                                            color: Colors.indigo.shade600,
-                                          ),
-                                        );
-                                      },
-                                    )
-                                  : Container(
-                                      color: Colors.indigo.shade100,
-                                      child: Icon(
-                                        _getCategoryIcon(item.category),
-                                        size: 32,
-                                        color: Colors.indigo.shade600,
-                                      ),
-                                    ),
-                            ),
-                          ),
-                        ),
-                        Expanded(
-                          flex: 2,
-                          child: Padding(
-                            padding: const EdgeInsets.all(8.0),
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                const SizedBox(height: 2),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: _getRarityColor(item.rarity),
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                  child: Text(
-                                    item.rarity,
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    // 已擁有標籤
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.green.shade600,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Text(
-                          '已擁有',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 8,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              );
-            },
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('關閉'),
-          ),
+          const SizedBox(height: 16),
+          // 背包項目
+          _buildBackpackItem('裝備', Icons.shield),
+          const SizedBox(height: 12),
+          _buildBackpackItem('頭像', Icons.face),
         ],
       ),
     );
   }
 
-  IconData _getCategoryIcon(String category) {
-    switch (category) {
-      case '造型':
-        return Icons.brush;
-      case '裝飾':
-        return Icons.emoji_objects;
-      case '語氣':
-        return Icons.record_voice_over;
-      case '動作':
-        return Icons.directions_run;
-      case '飼料':
-        return Icons.fastfood;
-      default:
-        return Icons.shopping_bag;
-    }
+  Widget _buildBackpackItem(String title, IconData icon) {
+    return GestureDetector(
+      onTap: () {
+        // 處理背包項目點擊
+        if (title == '裝備') {
+          // 導航到裝備頁面
+          Navigator.pushNamed(context, '/equipment');
+        } else if (title == '頭像') {
+          // 導航到頭像頁面
+          Navigator.pushNamed(context, '/avatar');
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+                     boxShadow: [
+             BoxShadow(
+               color: Colors.grey.withValues(alpha: 0.1),
+               blurRadius: 4,
+               offset: const Offset(0, 2),
+             ),
+           ],
+        ),
+        child: Row(
+          children: [
+            // 圖標
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: Colors.blue[100],
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(
+                icon,
+                color: Colors.blue[600],
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            // 標題
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            // 箭頭圖標
+            Icon(
+              Icons.arrow_forward_ios,
+              color: Colors.grey[400],
+              size: 16,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  Color _getRarityColor(String rarity) {
-    switch (rarity) {
-      case '稀有':
-        return Colors.purple.shade400;
-      case '普通':
-        return Colors.blue.shade400;
-      case '常見':
-        return Colors.green.shade400;
-      default:
-        return Colors.grey.shade400;
-    }
-  }
+
+
+
 }

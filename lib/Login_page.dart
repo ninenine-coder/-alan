@@ -6,6 +6,7 @@ import 'welcome_page.dart';
 import 'user_service.dart';
 import 'data_service.dart';
 import 'logger_service.dart';
+import 'experience_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -66,6 +67,14 @@ Future<void> _login() async {
       LoggerService.info('用戶數據載入完成');
     } catch (e) {
       LoggerService.error('載入用戶數據時發生錯誤: $e');
+    }
+
+    // 記錄登入時間（用於經驗值計算）
+    try {
+      await ExperienceService.recordLoginTime();
+      LoggerService.info('登入時間已記錄');
+    } catch (e) {
+      LoggerService.error('記錄登入時間時發生錯誤: $e');
     }
 
     // 檢查是否為首次登入
