@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'data_service.dart';
 import 'experience_service.dart';
+import 'experience_sync_service.dart';
 
 class UserService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -111,6 +112,9 @@ class UserService {
         // 記錄登入時間
         await ExperienceService.recordLoginTime();
         
+        // 初始化經驗值同步
+        await ExperienceSyncService.initializeExperienceSync();
+        
         return basicUserData;
       }
 
@@ -132,6 +136,9 @@ class UserService {
 
       // 5. 記錄登入時間
       await ExperienceService.recordLoginTime();
+      
+      // 6. 初始化經驗值同步
+      await ExperienceSyncService.initializeExperienceSync();
 
       return updatedData;
     } on FirebaseAuthException {
@@ -192,6 +199,9 @@ class UserService {
 
       // 5. 記錄登入時間
       await ExperienceService.recordLoginTime();
+      
+      // 6. 初始化經驗值同步
+      await ExperienceSyncService.initializeExperienceSync();
 
       return updatedData;
     } on FirebaseAuthException {
@@ -206,6 +216,9 @@ class UserService {
     try {
       // 計算並添加基於登入時間的經驗值
       await ExperienceService.calculateAndAddLoginExperience();
+      
+      // 保存當前經驗值作為離線數據
+      await ExperienceSyncService.saveOfflineExperience();
       
       // 同步所有數據到 Firestore
       await DataService.syncAllDataToFirestore();

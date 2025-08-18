@@ -1,6 +1,7 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'user_service.dart';
 import 'logger_service.dart';
 
 // 升級回調函數類型
@@ -109,7 +110,7 @@ class ExperienceService {
     }
   }
 
-  /// 獲取用戶當前經驗值和等級
+  /// 獲取用戶當前經驗值和等級（優先從 Firebase 獲取最新數據）
   static Future<Map<String, dynamic>> getCurrentExperience() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -118,6 +119,38 @@ class ExperienceService {
         return {'experience': 0, 'level': 1, 'progress': 0.0};
       }
 
+      // 優先從 Firebase 獲取最新數據
+      try {
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final firestoreExp = userData['experience'] ?? 0;
+          final firestoreLevel = userData['level'] ?? 1;
+          
+          // 更新本地數據以保持同步
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setInt('${_experienceKey}_${user.uid}', firestoreExp);
+          await prefs.setInt('${_levelKey}_${user.uid}', firestoreLevel);
+          
+          final progress = _calculateProgress(firestoreExp, firestoreLevel);
+          
+          LoggerService.debug('Experience loaded from Firebase: $firestoreExp, level: $firestoreLevel, progress: $progress');
+          
+          return {
+            'experience': firestoreExp,
+            'level': firestoreLevel,
+            'progress': progress,
+          };
+        }
+      } catch (e) {
+        LoggerService.warning('Failed to load from Firebase, using local data: $e');
+      }
+      
+      // 如果 Firebase 失敗，使用本地數據
       final prefs = await SharedPreferences.getInstance();
       
       // 檢查是否為首次登入
@@ -129,51 +162,15 @@ class ExperienceService {
         await prefs.setInt('${_levelKey}_${user.uid}', 1);
         await prefs.setBool('first_time_${user.uid}', false);
         
-        // 同步到 Firestore
+        // 同步到 Firebase
         await _syncToFirestore(user.uid, 0, 1);
         
         LoggerService.info('First time user, initialized experience to 0');
         return {'experience': 0, 'level': 1, 'progress': 0.0};
       }
       
-      // 非首次登入，從本地和 Firestore 獲取數據
       final localExp = prefs.getInt('${_experienceKey}_${user.uid}') ?? 0;
       final localLevel = prefs.getInt('${_levelKey}_${user.uid}') ?? 1;
-      
-      // 嘗試從 Firestore 獲取最新數據
-      try {
-        final userDoc = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
-        
-        if (userDoc.exists) {
-          final userData = userDoc.data() as Map<String, dynamic>;
-          final firestoreExp = userData['experience'] ?? 0;
-          
-          // 使用較新的數據
-          final finalExp = firestoreExp > localExp ? firestoreExp : localExp;
-          final finalLevel = _calculateLevel(finalExp);
-          
-          // 更新本地數據
-          await prefs.setInt('${_experienceKey}_${user.uid}', finalExp);
-          await prefs.setInt('${_levelKey}_${user.uid}', finalLevel);
-          
-          final progress = _calculateProgress(finalExp, finalLevel);
-          
-          LoggerService.debug('Experience loaded: $finalExp, level: $finalLevel, progress: $progress');
-          
-          return {
-            'experience': finalExp,
-            'level': finalLevel,
-            'progress': progress,
-          };
-        }
-      } catch (e) {
-        LoggerService.warning('Failed to load from Firestore, using local data: $e');
-      }
-      
-      // 如果 Firestore 失敗，使用本地數據
       final progress = _calculateProgress(localExp, localLevel);
       
       LoggerService.debug('Using local experience data: $localExp, level: $localLevel, progress: $progress');
@@ -189,7 +186,7 @@ class ExperienceService {
     }
   }
 
-  /// 增加經驗值
+  /// 增加經驗值（立即同步到 Firebase）
   static Future<void> addExperience(int amount) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
@@ -198,38 +195,81 @@ class ExperienceService {
         return;
       }
 
-      final prefs = await SharedPreferences.getInstance();
-      final currentExp = prefs.getInt('${_experienceKey}_${user.uid}') ?? 0;
-      final currentLevel = prefs.getInt('${_levelKey}_${user.uid}') ?? 1;
+      // 獲取當前經驗值（優先從 Firebase）
+      final currentData = await getCurrentExperience();
+      final currentExp = currentData['experience'] as int;
+      final currentLevel = currentData['level'] as int;
       
       final newExp = currentExp + amount;
       final newLevel = _calculateLevel(newExp);
       
-      // 保存新的經驗值和等級
-      await prefs.setInt('${_experienceKey}_${user.uid}', newExp);
-      await prefs.setInt('${_levelKey}_${user.uid}', newLevel);
+      // 立即同步到 Firebase（像金幣系統一樣）
+      final success = await UserService.updateUserData({
+        'experience': newExp,
+        'level': newLevel,
+        'lastExperienceUpdate': FieldValue.serverTimestamp(),
+      });
       
-      // 同步到 Firestore
-      await _syncToFirestore(user.uid, newExp, newLevel);
-      
-      LoggerService.info('Experience updated: +$amount exp, total: $newExp, level: $newLevel');
-      
-      // 檢查是否升級
-      if (newLevel > currentLevel) {
-        LoggerService.info('Level up! New level: $newLevel');
-        await _handleLevelUp(newLevel);
+      if (success) {
+        // 更新本地數據
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('${_experienceKey}_${user.uid}', newExp);
+        await prefs.setInt('${_levelKey}_${user.uid}', newLevel);
         
-        // 觸發所有升級回調
-        for (final callback in _levelUpCallbacks) {
-          try {
-            callback(newLevel);
-          } catch (e) {
-            LoggerService.error('Error in level up callback: $e');
+        LoggerService.info('Experience updated and synced to Firebase: +$amount exp, total: $newExp, level: $newLevel');
+        
+        // 檢查是否升級
+        if (newLevel > currentLevel) {
+          LoggerService.info('Level up! New level: $newLevel');
+          await _handleLevelUp(newLevel);
+          
+          // 觸發所有升級回調
+          for (final callback in _levelUpCallbacks) {
+            try {
+              callback(newLevel);
+            } catch (e) {
+              LoggerService.error('Error in level up callback: $e');
+            }
           }
         }
+      } else {
+        LoggerService.error('Failed to sync experience to Firebase');
       }
     } catch (e) {
       LoggerService.error('Error adding experience: $e');
+    }
+  }
+
+  /// 設置經驗值（立即同步到 Firebase）
+  static Future<void> setExperience(int experience) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        LoggerService.warning('No authenticated user found for experience update');
+        return;
+      }
+
+      final newLevel = _calculateLevel(experience);
+      
+      // 立即同步到 Firebase
+      final success = await UserService.updateUserData({
+        'experience': experience,
+        'level': newLevel,
+        'lastExperienceUpdate': FieldValue.serverTimestamp(),
+      });
+      
+      if (success) {
+        // 更新本地數據
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('${_experienceKey}_${user.uid}', experience);
+        await prefs.setInt('${_levelKey}_${user.uid}', newLevel);
+        
+        LoggerService.info('Experience set and synced to Firebase: $experience, level: $newLevel');
+      } else {
+        LoggerService.error('Failed to sync experience to Firebase');
+      }
+    } catch (e) {
+      LoggerService.error('Error setting experience: $e');
     }
   }
 
@@ -325,7 +365,7 @@ class ExperienceService {
     return totalExp;
   }
 
-  /// 同步經驗值到 Firestore
+  /// 同步經驗值到 Firestore（備用方法）
   static Future<void> _syncToFirestore(String userId, int experience, int level) async {
     try {
       await FirebaseFirestore.instance
@@ -354,11 +394,8 @@ class ExperienceService {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setStringList('unlocked_features_${user.uid}', unlockedFeatures);
       
-      // 同步到 Firestore
-      await FirebaseFirestore.instance
-          .collection('users')
-          .doc(user.uid)
-          .update({
+      // 同步到 Firebase
+      await UserService.updateUserData({
         'unlockedFeatures': unlockedFeatures,
         'lastLevelUp': FieldValue.serverTimestamp(),
       });
@@ -419,14 +456,23 @@ class ExperienceService {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('${_experienceKey}_${user.uid}', 0);
-      await prefs.setInt('${_levelKey}_${user.uid}', 1);
-      await prefs.setStringList('unlocked_features_${user.uid}', []);
+      // 立即同步到 Firebase
+      final success = await UserService.updateUserData({
+        'experience': 0,
+        'level': 1,
+        'lastExperienceUpdate': FieldValue.serverTimestamp(),
+      });
       
-      await _syncToFirestore(user.uid, 0, 1);
-      
-      LoggerService.info('Experience reset for user: ${user.uid}');
+      if (success) {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('${_experienceKey}_${user.uid}', 0);
+        await prefs.setInt('${_levelKey}_${user.uid}', 1);
+        await prefs.setStringList('unlocked_features_${user.uid}', []);
+        
+        LoggerService.info('Experience reset for user: ${user.uid}');
+      } else {
+        LoggerService.error('Failed to reset experience in Firebase');
+      }
     } catch (e) {
       LoggerService.error('Error resetting experience: $e');
     }
@@ -434,7 +480,7 @@ class ExperienceService {
 
   /// 獲取等級信息（用於顯示）
   static Map<String, dynamic> getLevelInfo(int level) {
-    final expNeeded = _getExperienceForLevel(level);
+    final expNeeded = _getExperienceForLevel(level + 1);
     final totalExpForLevel = _getTotalExperienceForLevel(level);
     
     return {
@@ -474,6 +520,71 @@ class ExperienceService {
     } catch (e) {
       LoggerService.error('Error getting estimated experience: $e');
       return 0;
+    }
+  }
+
+  /// 獲取上次離線時的經驗值（用於顯示）
+  static Future<Map<String, dynamic>?> getLastOfflineExperience() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return null;
+
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final lastExp = userData['experience'] ?? 0;
+        final lastLevel = userData['level'] ?? 1;
+        final lastUpdate = userData['lastExperienceUpdate'];
+        
+        return {
+          'experience': lastExp,
+          'level': lastLevel,
+          'lastUpdate': lastUpdate,
+          'progress': _calculateProgress(lastExp, lastLevel),
+        };
+      }
+      
+      return null;
+    } catch (e) {
+      LoggerService.error('Error getting last offline experience: $e');
+      return null;
+    }
+  }
+
+  /// 檢查是否有新的經驗值更新（用於顯示通知）
+  static Future<bool> hasNewExperienceUpdate() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return false;
+
+      final prefs = await SharedPreferences.getInstance();
+      final lastLocalUpdate = prefs.getString('last_experience_update_${user.uid}');
+      
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(user.uid)
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final lastFirebaseUpdate = userData['lastExperienceUpdate'];
+        
+        if (lastFirebaseUpdate != null && lastLocalUpdate != null) {
+          final localTime = DateTime.parse(lastLocalUpdate);
+          final firebaseTime = (lastFirebaseUpdate as Timestamp).toDate();
+          
+          return firebaseTime.isAfter(localTime);
+        }
+      }
+      
+      return false;
+    } catch (e) {
+      LoggerService.error('Error checking for new experience updates: $e');
+      return false;
     }
   }
 }

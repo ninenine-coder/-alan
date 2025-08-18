@@ -17,13 +17,13 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   late TabController _tabController;
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
 
-  final List<String> categories = ['造型', '裝飾', '語氣', '動作', '飼料'];
+  final List<String> categories = ['造型', '特效', '頭像', '主題桌鋪', '飼料'];
   
   final Map<String, IconData> categoryIcons = {
     '造型': Icons.face,
-    '裝飾': Icons.diamond,
-    '語氣': Icons.chat_bubble,
-    '動作': Icons.directions_run,
+    '特效': Icons.auto_awesome,
+    '頭像': Icons.account_circle,
+    '主題桌鋪': Icons.table_bar,
     '飼料': Icons.restaurant,
   };
 
@@ -106,7 +106,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     }
   }
 
-  Widget buildItem(DocumentSnapshot item) {
+  Widget buildItem(DocumentSnapshot item, {String? category}) {
     final data = item.data() as Map<String, dynamic>;
     final isPurchased = purchasedItems[item.id] == true;
     final name = data['name'] ?? '未命名商品';
@@ -114,6 +114,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     final popularity = data['常見度'] ?? data['popularity'] ?? '常見'; // 支援兩種常見度欄位名稱
     final imageUrl = data['圖片'] ?? data['imageUrl'] ?? ''; // 優先使用中文欄位名稱 '圖片'
     final description = data['description'] ?? '';
+    
+         // 檢查是否為經典款商品（任何類別且價格為0）
+     final isClassicItem = price == 0;
     
     // 調試信息
     LoggerService.info('商品資料: $data');
@@ -195,10 +198,31 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                       ),
                     ),
                   ),
+                                 // 經典款標籤
+                   if (isClassicItem)
+                     Positioned(
+                       top: 8,
+                       left: 8,
+                       child: Container(
+                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                         decoration: BoxDecoration(
+                           color: Colors.orange.shade600,
+                           borderRadius: BorderRadius.circular(12),
+                         ),
+                         child: Text(
+                           _getClassicLabel(category),
+                           style: const TextStyle(
+                             color: Colors.white,
+                             fontSize: 10,
+                             fontWeight: FontWeight.bold,
+                           ),
+                         ),
+                       ),
+                     ),
                 // 已購買標籤
                   if (isPurchased)
                     Positioned(
-                      top: 8,
+                      top: isClassicItem ? 36 : 8, // 如果是經典款，位置下移
                       left: 8,
                       child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -206,9 +230,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           color: Colors.green.shade600,
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Text(
-                          '已購買',
-                          style: TextStyle(
+                        child: Text(
+                          isClassicItem ? '已領取' : '已購買',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -236,20 +260,23 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      description,
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontSize: 10,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
+                                         Text(
+                       isClassicItem 
+                           ? '登入即可免費領取的${_getClassicLabel(category)}，每位玩家都能獲得！'
+                           : description,
+                       style: TextStyle(
+                         color: isClassicItem ? Colors.orange.shade600 : Colors.grey.shade600,
+                         fontSize: 10,
+                         fontWeight: isClassicItem ? FontWeight.w500 : FontWeight.normal,
+                       ),
+                       maxLines: 2,
+                       overflow: TextOverflow.ellipsis,
+                     ),
                   const SizedBox(height: 4),
                         Text(
-                    '價格: $price 元',
+                    isClassicItem ? '價格: 免費' : '價格: $price 元',
                           style: TextStyle(
-                      color: Colors.amber.shade700,
+                      color: isClassicItem ? Colors.green.shade700 : Colors.amber.shade700,
                             fontWeight: FontWeight.bold,
                       fontSize: 12,
                     ),
@@ -262,7 +289,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                     ),
                   ),
                   const Spacer(),
-                  // 購買按鈕
+                  // 按鈕區域
                     SizedBox(
                       width: double.infinity,
                       child: isPurchased
@@ -283,7 +310,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    '已購買',
+                                    isClassicItem ? '已領取' : '已購買',
                                     style: TextStyle(
                                       color: Colors.green.shade700,
                                       fontWeight: FontWeight.bold,
@@ -294,9 +321,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                               ),
                             )
                           : ElevatedButton(
-                            onPressed: () => _showPurchaseDialog(context, {...data, 'id': item.id}),
+                            onPressed: () => isClassicItem 
+                                ? _claimClassicItem(context, {...data, 'id': item.id})
+                                : _showPurchaseDialog(context, {...data, 'id': item.id}),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.blue.shade600,
+                                backgroundColor: isClassicItem ? Colors.orange.shade600 : Colors.blue.shade600,
                                 foregroundColor: Colors.white,
                                 shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(8),
@@ -304,8 +333,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                                 elevation: 2,
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               ),
-                              child: const Text(
-                                '購買',
+                              child: Text(
+                                isClassicItem ? '登入領取' : '購買',
                               style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
                               ),
                             ),
@@ -415,7 +444,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               builder: (context, value, child) {
                 return Transform.scale(
                   scale: value,
-                  child: buildItem(items[index]),
+                  child: buildItem(items[index], category: category),
                 );
               },
             );
@@ -429,6 +458,76 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  /// 領取經典款商品（免費）
+  Future<void> _claimClassicItem(BuildContext context, Map<String, dynamic> product) async {
+    if (_currentUser == null) return;
+    
+    try {
+      final username = _currentUser!['username'] ?? 'default';
+      final userRef = FirebaseFirestore.instance.collection('users').doc(username);
+      
+      await FirebaseFirestore.instance.runTransaction((transaction) async {
+        final userDoc = await transaction.get(userRef);
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final purchasedItems = List<String>.from(userData['purchasedItems'] ?? []);
+          
+          if (!purchasedItems.contains(product['id'])) {
+            purchasedItems.add(product['id']);
+            transaction.update(userRef, {'purchasedItems': purchasedItems});
+          }
+        }
+      });
+      
+      setState(() {
+        purchasedItems[product['id']] = true;
+      });
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.card_giftcard, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('領取成功！${product['name'] ?? '經典款商品'} 已加入收藏'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      
+      LoggerService.info('經典款商品領取成功: ${product['name']}');
+    } catch (e) {
+      LoggerService.error('領取經典款商品時發生錯誤: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('領取失敗，請稍後再試'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _buyItem(Map<String, dynamic> product) async {
@@ -682,24 +781,42 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     );
   }
 
-  Color _getRarityColor(String rarity) {
-    switch (rarity) {
-      case '稀有':
-        return Colors.purple.shade400;
-      case '普通':
-        return Colors.blue.shade400;
-      case '常見':
-        return Colors.green.shade400;
-      case 'rare':
-        return Colors.purple.shade400;
-      case 'common':
-        return Colors.green.shade400;
-      case 'normal':
-        return Colors.blue.shade400;
-      default:
-        return Colors.grey.shade400;
-    }
-  }
+     /// 根據類別獲取經典款標籤文字
+   String _getClassicLabel(String? category) {
+     switch (category) {
+       case '造型':
+         return '經典造型';
+       case '特效':
+         return '經典特效';
+       case '頭像':
+         return '經典頭像';
+       case '主題桌鋪':
+         return '經典主題';
+       case '飼料':
+         return '經典飼料';
+       default:
+         return '經典款';
+     }
+   }
+
+   Color _getRarityColor(String rarity) {
+     switch (rarity) {
+       case '稀有':
+         return Colors.purple.shade400;
+       case '普通':
+         return Colors.blue.shade400;
+       case '常見':
+         return Colors.green.shade400;
+       case 'rare':
+         return Colors.purple.shade400;
+       case 'common':
+         return Colors.green.shade400;
+       case 'normal':
+         return Colors.blue.shade400;
+       default:
+         return Colors.grey.shade400;
+     }
+   }
 
   @override
   Widget build(BuildContext context) {

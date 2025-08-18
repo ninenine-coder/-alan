@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'coin_display.dart';
 import 'user_service.dart';
 import 'challenge_service.dart';
@@ -523,10 +524,25 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
             ),
           ),
           const SizedBox(height: 16),
-          // 背包項目
-          _buildBackpackItem('裝備', Icons.shield),
+          // 第一行：造型、特效、飼料
+          Row(
+            children: [
+              Expanded(child: _buildBackpackItem('造型', Icons.face)),
+              const SizedBox(width: 8),
+              Expanded(child: _buildBackpackItem('特效', Icons.auto_awesome)),
+              const SizedBox(width: 8),
+              Expanded(child: _buildBackpackItem('飼料', Icons.restaurant)),
+            ],
+          ),
           const SizedBox(height: 12),
-          _buildBackpackItem('頭像', Icons.face),
+          // 第二行：頭像、主題桌布
+          Row(
+            children: [
+              Expanded(child: _buildBackpackItem('頭像', Icons.account_circle)),
+              const SizedBox(width: 8),
+              Expanded(child: _buildBackpackItem('主題桌布', Icons.table_bar)),
+            ],
+          ),
         ],
       ),
     );
@@ -535,29 +551,23 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
   Widget _buildBackpackItem(String title, IconData icon) {
     return GestureDetector(
       onTap: () {
-        // 處理背包項目點擊
-        if (title == '裝備') {
-          // 導航到裝備頁面
-          Navigator.pushNamed(context, '/equipment');
-        } else if (title == '頭像') {
-          // 導航到頭像頁面
-          Navigator.pushNamed(context, '/avatar');
-        }
+        // 處理背包項目點擊 - 顯示對話框
+        _showCategoryDialog(title);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-                     boxShadow: [
-             BoxShadow(
-               color: Colors.grey.withValues(alpha: 0.1),
-               blurRadius: 4,
-               offset: const Offset(0, 2),
-             ),
-           ],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withValues(alpha: 0.1),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
-        child: Row(
+        child: Column(
           children: [
             // 圖標
             Container(
@@ -573,28 +583,351 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
                 size: 24,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(height: 8),
             // 標題
-            Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
               ),
-            ),
-            // 箭頭圖標
-            Icon(
-              Icons.arrow_forward_ios,
-              color: Colors.grey[400],
-              size: 16,
+              textAlign: TextAlign.center,
             ),
           ],
         ),
       ),
     );
+  }
+
+  void _showCategoryDialog(String category) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Container(
+            width: MediaQuery.of(context).size.width * 0.9,
+            height: MediaQuery.of(context).size.height * 0.8,
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              children: [
+                // 標題
+                Row(
+                  children: [
+                    Icon(
+                      _getCategoryIcon(category),
+                      color: Colors.blue[600],
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '$category',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.close),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                // 內容區域
+                Expanded(
+                  child: _buildCategoryContent(category),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildCategoryContent(String category) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _getUserPurchasedItems(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: CircularProgressIndicator(),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  '載入失敗',
+                  style: TextStyle(
+                    fontSize: 18,
+                    color: Colors.red.shade600,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final purchasedItems = snapshot.data ?? {};
+        final categoryItems = _getCategoryItems(category, purchasedItems);
+
+        if (categoryItems.isEmpty) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  _getCategoryIcon(category),
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  '您還沒有購買任何$category',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey.shade600,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '前往商城購買更多$category吧！',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade500,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    Navigator.pushNamed(context, '/store');
+                  },
+                  child: const Text('前往商城'),
+                ),
+              ],
+            ),
+          );
+        }
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(8),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 0.8,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+          ),
+          itemCount: categoryItems.length,
+          itemBuilder: (context, index) {
+            final item = categoryItems[index];
+            return _buildItemCard(item);
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildItemCard(Map<String, dynamic> item) {
+    final name = item['name'] ?? '未命名商品';
+    final imageUrl = item['圖片'] ?? item['imageUrl'] ?? '';
+    
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 圖片區域
+          Expanded(
+            flex: 3,
+            child: Container(
+              width: double.infinity,
+              decoration: BoxDecoration(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                gradient: LinearGradient(
+                  colors: [Colors.blue.shade100, Colors.blue.shade200],
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                child: imageUrl.isNotEmpty && imageUrl != '""'
+                    ? Image.network(
+                        imageUrl,
+                        width: double.infinity,
+                        height: double.infinity,
+                        fit: BoxFit.cover,
+                        loadingBuilder: (context, child, loadingProgress) {
+                          if (loadingProgress == null) return child;
+                          return Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                  : null,
+                            ),
+                          );
+                        },
+                        errorBuilder: (context, error, stackTrace) {
+                          return _buildNoImagePlaceholder();
+                        },
+                      )
+                    : _buildNoImagePlaceholder(),
+              ),
+            ),
+          ),
+          // 名稱區域
+          Expanded(
+            flex: 1,
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(8),
+              child: Text(
+                name,
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoImagePlaceholder() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.image_not_supported_outlined, size: 32, color: Colors.grey.shade400),
+          const SizedBox(height: 4),
+          Text(
+            '無圖片',
+            style: TextStyle(
+              color: Colors.grey.shade600,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<Map<String, dynamic>?> _getUserPurchasedItems() async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return null;
+
+      final username = userData['username'] ?? 'default';
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(username)
+          .get();
+
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        final purchasedItemIds = List<String>.from(userData['purchasedItems'] ?? []);
+        
+        // 獲取所有購買的商品詳細信息
+        final Map<String, dynamic> purchasedItems = {};
+        
+        for (final itemId in purchasedItemIds) {
+          // 在各個類別中查找商品
+          for (final category in ['造型', '特效', '頭像', '主題桌鋪', '飼料']) {
+            try {
+              final itemDoc = await FirebaseFirestore.instance
+                  .collection(category)
+                  .doc(itemId)
+                  .get();
+              
+              if (itemDoc.exists) {
+                final itemData = itemDoc.data() as Map<String, dynamic>;
+                purchasedItems[itemId] = {
+                  ...itemData,
+                  'category': category,
+                  'id': itemId,
+                };
+                break; // 找到商品後跳出內層循環
+              }
+            } catch (e) {
+              LoggerService.error('Error fetching item $itemId from category $category: $e');
+            }
+          }
+        }
+        
+        return purchasedItems;
+      }
+      
+      return null;
+    } catch (e) {
+      LoggerService.error('Error getting user purchased items: $e');
+      return null;
+    }
+  }
+
+  List<Map<String, dynamic>> _getCategoryItems(String category, Map<String, dynamic> purchasedItems) {
+    final List<Map<String, dynamic>> categoryItems = [];
+    
+    purchasedItems.forEach((itemId, itemData) {
+      if (itemData is Map<String, dynamic> && itemData['category'] == category) {
+        categoryItems.add(itemData);
+      }
+    });
+    
+    return categoryItems;
+  }
+
+  IconData _getCategoryIcon(String category) {
+    switch (category) {
+      case '造型':
+        return Icons.face;
+      case '特效':
+        return Icons.auto_awesome;
+      case '飼料':
+        return Icons.restaurant;
+      case '頭像':
+        return Icons.account_circle;
+      case '主題桌布':
+        return Icons.table_bar;
+      default:
+        return Icons.category;
+    }
+  }
+
+  void _navigateToCategoryPage(String category) {
+    // 這裡可以根據類別導航到對應的頁面
+    switch (category) {
+      case '造型':
+        Navigator.pushNamed(context, '/costume');
+        break;
+      case '特效':
+        Navigator.pushNamed(context, '/effects');
+        break;
+      case '飼料':
+        Navigator.pushNamed(context, '/feed');
+        break;
+      case '頭像':
+        Navigator.pushNamed(context, '/avatar');
+        break;
+      case '主題桌布':
+        Navigator.pushNamed(context, '/theme');
+        break;
+    }
   }
 
 

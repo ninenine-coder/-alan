@@ -7,6 +7,7 @@ import 'chat_page.dart';
 import 'pet_page.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
+import 'experience_sync_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -68,7 +69,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       if (FirebaseAuth.instance.currentUser != null) {
         // 記錄登入時間
         await ExperienceService.recordLoginTime();
-        LoggerService.info('Login time recorded on app resumed');
+        
+        // 初始化經驗值同步，顯示上次離線經驗值
+        await ExperienceSyncService.initializeExperienceSync();
+        
+        LoggerService.info('Login time recorded and experience sync initialized on app resumed');
       }
     } catch (e) {
       LoggerService.error('Error handling app resumed: $e');
@@ -81,7 +86,11 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       if (FirebaseAuth.instance.currentUser != null) {
         // 計算並添加基於登入時間的經驗值
         await ExperienceService.calculateAndAddLoginExperience();
-        LoggerService.info('Experience calculated on app background');
+        
+        // 保存當前經驗值作為離線數據
+        await ExperienceSyncService.saveOfflineExperience();
+        
+        LoggerService.info('Experience calculated and offline data saved on app background');
       }
     } catch (e) {
       LoggerService.error('Error handling app background: $e');
