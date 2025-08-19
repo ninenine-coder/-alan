@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'chat_page.dart';
 import 'register_page.dart';
 import 'welcome_page.dart';
@@ -29,6 +30,28 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
+  /// 獲取選擇的造型圖片
+  Future<String?> _getSelectedStyleImage() async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return null;
+
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      final selectedImage = prefs.getString('selected_style_image_$username');
+      
+      // 如果沒有選擇的造型，返回經典捷米的圖片
+      if (selectedImage == null || selectedImage.isEmpty) {
+        return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片
+      }
+      
+      return selectedImage;
+    } catch (e) {
+      LoggerService.error('Error getting selected style image: $e');
+      return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片作為預設
+    }
+  }
+
 Future<void> _login() async {
   final username = _usernameController.text.trim();
   final password = _passwordController.text.trim();
@@ -43,6 +66,9 @@ Future<void> _login() async {
   setState(() {
     _isLoading = true;
   });
+
+  // 在異步操作前保存 Navigator
+  final navigator = Navigator.of(context);
 
   try {
     // 使用用戶名進行登入
@@ -81,16 +107,16 @@ Future<void> _login() async {
     final loginCount = userData['loginCount'] ?? 0;
     final isFirstLogin = loginCount <= 1;
 
-    if (isFirstLogin) {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const WelcomePage()),
-      );
-    } else {
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => const ChatPage()),
-      );
+    if (mounted) {
+      if (isFirstLogin) {
+        navigator.pushReplacement(
+          MaterialPageRoute(builder: (context) => const WelcomePage()),
+        );
+      } else {
+        navigator.pushReplacement(
+          MaterialPageRoute(builder: (context) => const ChatPage()),
+        );
+      }
     }
   } catch (e) {
     _showErrorDialog('登入失敗，請稍後再試');
@@ -227,10 +253,34 @@ Future<void> _login() async {
                         ),
                       ],
                     ),
-                    child: Icon(
-                      Icons.person,
-                      size: 60,
-                      color: Colors.blue.shade600,
+                    child: FutureBuilder<String?>(
+                      future: _getSelectedStyleImage(),
+                      builder: (context, snapshot) {
+                        final imageUrl = snapshot.data;
+                        if (imageUrl != null && imageUrl.isNotEmpty) {
+                          return ClipOval(
+                            child: Image.network(
+                              imageUrl,
+                              width: 120,
+                              height: 120,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Icon(
+                                  Icons.pets,
+                                  size: 60,
+                                  color: Colors.blue.shade600,
+                                );
+                              },
+                            ),
+                          );
+                        } else {
+                          return Icon(
+                            Icons.pets,
+                            size: 60,
+                            color: Colors.blue.shade600,
+                          );
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(height: 32),

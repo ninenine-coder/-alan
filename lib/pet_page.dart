@@ -74,6 +74,27 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     }
   }
 
+  /// 獲取選擇的造型圖片
+  Future<String?> _getSelectedStyleImage() async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return null;
+
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      final selectedStyleImage = prefs.getString('selected_style_image_$username');
+      
+      if (selectedStyleImage != null && selectedStyleImage.isNotEmpty) {
+        return selectedStyleImage;
+      } else {
+        return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片作為預設
+      }
+    } catch (e) {
+      LoggerService.error('Error getting selected style image: $e');
+      return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片作為預設
+    }
+  }
+
 
 
   Future<void> _loadPetName() async {
@@ -236,11 +257,36 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         children: [
-          // 左側：用戶頭像
-          CircleAvatar(
-            radius: 20,
-            backgroundColor: Colors.grey[300],
-            child: Icon(Icons.person, color: Colors.grey[600]),
+          // 左側：傑米頭像
+          FutureBuilder<String?>(
+            future: _getSelectedStyleImage(),
+            builder: (context, snapshot) {
+              final imageUrl = snapshot.data;
+              if (imageUrl != null && imageUrl.isNotEmpty) {
+                return CircleAvatar(
+                  radius: 20,
+                  backgroundImage: NetworkImage(imageUrl),
+                  onBackgroundImageError: (exception, stackTrace) {
+                    // 如果圖片載入失敗，使用預設圖標
+                  },
+                  child: imageUrl.isEmpty ? Icon(
+                    Icons.pets,
+                    color: Colors.white,
+                    size: 24,
+                  ) : null,
+                );
+              } else {
+                return CircleAvatar(
+                  radius: 20,
+                  backgroundColor: Colors.blue.shade400,
+                  child: Icon(
+                    Icons.pets,
+                    color: Colors.white,
+                    size: 24,
+                  ),
+                );
+              }
+            },
           ),
           const SizedBox(width: 12),
           
@@ -980,31 +1026,7 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     );
   }
 
-  Future<Map<String, dynamic>?> _getUserPurchasedItems() async {
-    try {
-      final userData = await UserService.getCurrentUserData();
-      if (userData == null) return null;
 
-      final username = userData['username'] ?? 'default';
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(username)
-          .get();
-
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        // 直接使用 purchasedItemsWithCategory 數據
-        final purchasedItemsWithCategory = Map<String, dynamic>.from(userData['purchasedItemsWithCategory'] ?? {});
-        
-        return purchasedItemsWithCategory;
-      }
-      
-      return null;
-    } catch (e) {
-      LoggerService.error('Error getting user purchased items: $e');
-      return null;
-    }
-  }
 
   /// 獲取指定類別中狀態為「已擁有」的商品
   Future<List<Map<String, dynamic>>> _getOwnedItemsByCategory(String category) async {
@@ -1086,23 +1108,7 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     }
   }
 
-  List<Map<String, dynamic>> _getCategoryItems(String category, Map<String, dynamic> purchasedItemsWithCategory) {
-    final List<Map<String, dynamic>> categoryItems = [];
-    
-    purchasedItemsWithCategory.forEach((itemId, itemData) {
-      if (itemData is Map<String, dynamic>) {
-        final itemCategory = itemData['category'] as String?;
-        // 處理類別名稱對應
-        if (itemCategory == category || 
-            (category == '主題桌布' && itemCategory == '主題桌鋪') ||
-            (category == '主題桌鋪' && itemCategory == '主題桌布')) {
-          categoryItems.add(itemData);
-        }
-      }
-    });
-    
-    return categoryItems;
-  }
+
 
   IconData _getCategoryIcon(String category) {
     switch (category) {

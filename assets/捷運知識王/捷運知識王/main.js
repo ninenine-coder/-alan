@@ -19,6 +19,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const finalScore = document.getElementById('final-score');
     const comboDisplay = document.getElementById('combo-display'); // 連擊顯示
 
+    // 新增：分數彈出動畫和結束稱號的 DOM 元素
+    const scorePopup = document.getElementById('score-popup'); 
+    const endScreenTitle = document.getElementById('end-screen-title'); 
+
+    // 音效元素
+    const backgroundMusic = document.getElementById('background-music');
+    const gameStartSound = document.getElementById('game-start-sound'); // 根據 HTML 中的 ID 修正
     const correctSound = document.getElementById('correct-sound');
     const incorrectSound = document.getElementById('incorrect-sound');
 
@@ -41,6 +48,48 @@ document.addEventListener('DOMContentLoaded', () => {
     let timerInterval;
     const TIME_LIMIT = 10; // 每題作答時間（秒）
     let isAnswering = false; // 防止重複點擊答案
+
+    // --- 瀏覽器自動播放限制處理與音訊初始化 ---
+    // 追蹤音訊是否已由使用者互動解鎖
+    let audioUnlocked = false;
+
+    // 建立一個「音訊內容解鎖」函數
+    function unlockAudioContext() {
+        if (audioUnlocked) return; // 如果已經解鎖，就不用再執行
+        
+        // 嘗試播放一個非常短的無聲片段來「喚醒」瀏覽器的音訊功能
+        if (backgroundMusic) {
+            const promise = backgroundMusic.play();
+            if (promise !== undefined) {
+                promise.then(_ => {
+                    backgroundMusic.pause(); // 喚醒後立刻暫停，等待我們真正需要時再播放
+                    backgroundMusic.currentTime = 0;
+                    console.log("音訊已由使用者互動解鎖！");
+                    audioUnlocked = true;
+                }).catch(error => {
+                    console.error("音訊解鎖失敗:", error);
+                });
+            }
+        }
+    }
+    
+    // 監聽整個頁面的第一次點擊事件，用來解鎖音訊
+    document.body.addEventListener('click', unlockAudioContext, { once: true });
+
+    // 頁面載入後，就讓背景音樂準備好並嘗試播放
+    function startInitialMusic() {
+        if (backgroundMusic) {
+            backgroundMusic.volume = 0.2; // 調整背景音樂音量為 20%
+            backgroundMusic.play().catch(e => {
+                console.log("瀏覽器阻擋了初始自動播放。等待使用者點擊...");
+            });
+        }
+        // 確保答題音效音量為 100%
+        if (correctSound) correctSound.volume = 1.0;
+        if (incorrectSound) incorrectSound.volume = 1.0;
+        if (gameStartSound) gameStartSound.volume = 1.0;
+    }
+    startInitialMusic(); // 載入時就嘗試播放
 
     // --- 輔助函數 ---
 
@@ -88,6 +137,15 @@ document.addEventListener('DOMContentLoaded', () => {
         updateScore(state.score); // 更新分數顯示
         switchScreen('game'); // 切換到遊戲畫面
         displayQuestion(state.currentQuestionDetails); // 顯示第一題
+
+        // 播放遊戲開始音效並暫停背景音樂
+        if (gameStartSound) {
+            gameStartSound.play().catch(e => console.error("遊戲開始音效播放失敗:", e));
+        }
+        if (backgroundMusic) {
+            backgroundMusic.pause();
+            backgroundMusic.currentTime = 0; // 重置背景音樂到開頭
+        }
     }
 
     // 顯示問題
@@ -96,6 +154,11 @@ document.addEventListener('DOMContentLoaded', () => {
         isAnswering = false; // 允許玩家再次作答
         clearFeedback(); // 清除上一題的回饋訊息
         
+        // 在顯示新問題時，確保列車動畫是顯示的
+        if (trainContainer) {
+            trainContainer.style.display = 'block';
+        }
+
         // 更新題號和問題文字
         questionCounter.textContent = `第 ${state.currentQuestionNum} / ${state.totalQuestions} 題`;
         questionText.textContent = question.text;
@@ -123,7 +186,13 @@ document.addEventListener('DOMContentLoaded', () => {
         timerBar.style.background = 'linear-gradient(90deg, #22c55e, #a3e635)'; // 重置計時條顏色
 
         disableOptions(); // 禁用所有選項按鈕
+        
+        // 無論答對或答錯，在提交答案後立即隱藏列車動畫
+        if (trainContainer) {
+            trainContainer.style.display = 'none';
+        }
 
+        const scoreBefore = state.score; // 記錄答題前的分數
         const result = await apiCall('/api/submit_answer', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -133,6 +202,12 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!result) {
             // API 呼叫失敗已在 apiCall 內部處理，這裡直接返回
             return;
+        }
+
+        const scoreAfter = result.score;
+        const pointsEarned = scoreAfter - scoreBefore; // 計算本次得分
+        if (pointsEarned > 0) {
+            showScorePopup(`+${pointsEarned}`); // 顯示分數彈出動畫
         }
 
         updateScore(result.score); // 更新分數顯示
@@ -153,7 +228,14 @@ document.addEventListener('DOMContentLoaded', () => {
     // 遊戲結束邏輯
     function endGame() {
         finalScore.textContent = state.score;
+        setEndGameTitle(state.score); // 根據分數設定結束稱號
         switchScreen('end'); // 切換到結束畫面
+
+        // 遊戲結束時重新播放背景音樂
+        if (backgroundMusic) {
+            backgroundMusic.currentTime = 0; // 將音樂倒回開頭再播放
+            backgroundMusic.play().catch(e => console.error("結束時背景音樂播放失敗:", e));
+        }
     }
 
     // 畫面切換函數
@@ -168,10 +250,10 @@ document.addEventListener('DOMContentLoaded', () => {
         void activeScreen.offsetWidth; // 觸發重繪以重新應用動畫
         activeScreen.classList.add('animate-fadeIn');
 
-        // 遊戲中或結束畫面顯示火車動畫
-        if (screen === 'game' || screen === 'end') {
-            trainContainer.classList.remove('hidden');
-        }
+        // 遊戲中或結束畫面顯示火車動畫 (此處邏輯已由 displayQuestion 和 handleAnswer 接管)
+        // if (screen === 'game' || screen === 'end') { 
+        //     trainContainer.classList.remove('hidden');
+        // }
     }
 
     // 更新分數顯示
@@ -186,7 +268,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.is_correct) {
             if (clickedButton) clickedButton.classList.add('correct'); // 玩家點擊的按鈕
             feedbackDisplay.className = 'text-center font-bold text-2xl mt-6 min-h-[40px] text-green-500';
-            correctSound.play();
+            correctSound.play().catch(e => console.error("正確音效播放失敗:", e)); // 播放正確音效
         } else {
             if (clickedButton) clickedButton.classList.add('incorrect'); // 玩家點擊的按鈕
             feedbackDisplay.className = 'text-center font-bold text-2xl mt-6 min-h-[40px] text-red-500';
@@ -196,7 +278,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     btn.classList.add('correct'); // 正確答案按鈕標示綠色
                 }
             });
-            incorrectSound.play();
+            incorrectSound.play().catch(e => console.error("錯誤音效播放失敗:", e)); // 播放錯誤音效
         }
     }
 
@@ -255,6 +337,33 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100); // 每100毫秒更新
     }
 
+    // 顯示分數彈出動畫
+    function showScorePopup(text) {
+        if (scorePopup) {
+            scorePopup.textContent = text;
+            scorePopup.style.animation = 'none';
+            void scorePopup.offsetWidth; // 強制瀏覽器重繪
+            scorePopup.style.animation = 'fade-up-out 1.5s ease-out';
+        }
+    }
+
+    // 根據分數設定結束稱號 (已調整分數門檻)
+    function setEndGameTitle(score) {
+        let title = "再接再厲！"; // 預設稱號
+        if (score >= 4500) {
+            title = "捷運天王！";
+        } else if (score >= 3000) {
+            title = "捷運達人";
+        } else if (score >= 1500) {
+            title = "捷運熟手";
+        } else if (score > 0) { // 只要有分數就至少是菜鳥
+            title = "捷運菜鳥";
+        }
+        if (endScreenTitle) {
+            endScreenTitle.textContent = title;
+        }
+    }
+
     // 顯示錯題回顧模態視窗
     async function showReviewModal() {
         wrongAnswersList.innerHTML = '<p class="text-center text-gray-500">正在載入錯題紀錄...</p>';
@@ -296,7 +405,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const li = document.createElement('li');
                 li.className = `flex justify-between items-center p-3 rounded-lg ${index < 3 ? 'bg-amber-100' : 'bg-gray-100'}`;
                 li.innerHTML = `
-                    <span class="font-bold text-lg w-10 ${index < 3 ? 'text-amber-500' : 'text-gray-600'}">#${index + 1}</span>
+                    <span class="font-bold text-lg w-10 ${index + 1}.</span>
                     <span class="text-gray-800 font-medium flex-grow">${entry.name}</span>
                     <span class="font-bold text-violet-600">${entry.score} 分</span>
                 `;

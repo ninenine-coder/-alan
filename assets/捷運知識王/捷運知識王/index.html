@@ -165,33 +165,37 @@
             color: #4a5568; /* 深灰色 */
         }
 
+        /* 捷運列車動畫容器 */
+        .train-animation-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 100px; /* 調整高度以容納圖片，給予更多空間 */
+            overflow: hidden;
+            pointer-events: none; /* 允許點擊穿透 */
+            z-index: 10;
+        }
+
+        /* 捷運列車圖片樣式 */
+        .train-animation-container img {
+            position: absolute;
+            bottom: 0; /* 圖片底部對齊容器底部 */
+            left: -15%; /* 初始位置 */
+            width: 90px; /* 調整圖片寬度，讓傑米更小一點 */
+            height: auto;
+            animation: train-move 15s linear infinite; /* 火車移動動畫 */
+            z-index: 10;
+            opacity: 0.9; /* 稍微透明 */
+            transform: scaleX(-1); /* 圖片水平翻轉，讓傑米面向行進方向 */
+        }
+        
         /* 捷運列車動畫 */
         @keyframes train-move {
             0% { left: -15%; } /* 從左邊外側開始 */
             100% { left: 115%; } /* 移動到右邊外側 */
         }
 
-        .train-animation-container {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            width: 100%;
-            height: 30px; /* 火車軌道高度 */
-            overflow: hidden;
-            pointer-events: none; /* 允許點擊穿透 */
-            z-index: 10;
-        }
-
-        .train-animation-container svg {
-            position: absolute;
-            bottom: 5px; /* 調整火車位置 */
-            left: -15%; /* 初始位置 */
-            width: 80px; /* 火車寬度 */
-            height: auto;
-            animation: train-move 15s linear infinite; /* 火車移動動畫 */
-            z-index: 10;
-            opacity: 0.6; /* 半透明 */
-        }
 
         /* 排行榜模態視窗列表項高亮 */
         #leaderboard-list li {
@@ -230,13 +234,41 @@
             #combo-display {
                 font-size: 3rem;
             }
-            .train-animation-container svg {
-                width: 60px; /* 手機上火車小一點 */
+            .train-animation-container img { /* 調整圖片寬度 */
+                width: 100px; /* 手機上傑米小一點 */
                 animation-duration: 10s; /* 手機上火車跑快一點 */
             }
+            .train-animation-container {
+                height: 80px; /* 手機上容器高度也小一點 */
+            }
+        }
+
+        /* --- 新增樣式 --- */
+        /* 分數彈出動畫 */
+        #score-popup {
+            position: absolute;
+            right: 1.5rem; /* 靠近分數顯示 */
+            top: 4.5rem; /* 在分數顯示下方一點 */
+            font-size: 1.75rem;
+            font-weight: 900;
+            color: #10b981; /* 綠色 */
+            opacity: 0;
+            pointer-events: none; /* 允許點擊穿透 */
+            z-index: 90; /* 確保在分數顯示之上，但在連擊顯示之下 */
+            animation: fade-up-out 1.5s ease-out; /* 綁定動畫 */
+        }
+        @keyframes fade-up-out {
+            0% { transform: translateY(0); opacity: 1; }
+            100% { transform: translateY(-40px); opacity: 0; }
         }
     </style>
     <!-- 音效預載 -->
+    <audio id="background-music" loop preload="auto" volume="0.3" autoplay>
+        <!-- 請將 src 替換為您的音樂檔案的公開 URL，或將檔案放在與 index.html 相同的資料夾並使用相對路徑 -->
+        <source src="捷運進站音樂 - 小禾 (youtube).mp3" type="audio/mpeg">
+        您的瀏覽器不支援音訊元素。
+    </audio>
+    <audio id="game-start-sound" src="https://actions.google.com/sounds/v1/ui/swipe.ogg" preload="auto"></audio>
     <audio id="correct-sound" src="https://actions.google.com/sounds/v1/positive/success.ogg" preload="auto"></audio>
     <audio id="incorrect-sound" src="https://actions.google.com/sounds/v1/negative/failure.ogg" preload="auto"></audio>
 </head>
@@ -247,9 +279,8 @@
     <div class="main-container">
         <!-- 捷運列車動畫容器 -->
         <div id="train-container" class="train-animation-container hidden">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-                <path fill="#4A5568" d="M128 0c-17.7 0-32 14.3-32 32V64H32C14.3 64 0 78.3 0 96V352c0 44.2 35.8 80 80 80h32c0 44.2 35.8 80 80 80s80-35.8 80-80h64c0 44.2 35.8 80 80 80s80-35.8 80-80h32c44.2 0 80-35.8 80-80V96c0-17.7-14.3-32-32-32H416V32c0-17.7-14.3-32-32-32H128zM32 96H480V256H32V96zM128 32h32v32h-32V32zm160 0h32v32h-32V32z"/>
-            </svg>
+            <!-- 將 SVG 替換為圖片 -->
+            <img src="傑米搭捷運.png" alt="捷運列車">
         </div>
 
         <!-- 開始畫面 -->
@@ -266,6 +297,7 @@
 
         <!-- 遊戲畫面 -->
         <div id="game-screen" class="p-6 md:p-8 hidden">
+            <div id="score-popup"></div> <!-- 新增：分數彈出動畫容器 -->
             <div class="flex justify-between items-center mb-4">
                 <div id="question-counter" class="text-lg font-bold text-gray-600"></div>
                 <div id="score-display" class="px-4 py-2 bg-violet-100 text-violet-700 font-bold rounded-full text-lg">分數: 0</div>
@@ -282,6 +314,7 @@
 
         <!-- 結束畫面 -->
         <div id="end-screen" class="p-8 text-center hidden">
+            <h3 id="end-screen-title" class="text-2xl font-bold text-amber-500 mb-2"></h3> <!-- 新增：結束稱號顯示 -->
             <h2 class="text-4xl font-black text-violet-700 mb-2">遊戲結束！</h2>
             <p class="text-gray-600 mb-4">你的最終成績是：</p>
             <p id="final-score" class="text-7xl font-bold text-violet-600 mb-8"></p>

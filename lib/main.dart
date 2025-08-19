@@ -5,6 +5,7 @@ import 'firebase_options.dart';
 import 'login_page.dart';
 import 'chat_page.dart';
 import 'pet_page.dart';
+import 'medal_page.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
 import 'experience_sync_service.dart';
@@ -109,6 +110,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/': (context) => const MainSelectionPage(),
         '/chat': (context) => const ChatPage(),
         '/pet': (context) => const PetPage(initialPetName: '捷米'),
+        '/medal': (context) => const MedalPage(),
         '/store': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
           String? initialCategory;
