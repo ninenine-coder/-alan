@@ -20,11 +20,18 @@ class ExperienceSyncService {
       final lastOfflineExp = await getLastOfflineExperience();
       
       if (lastOfflineExp != null) {
-        // 顯示離線經驗值信息
-        await _showOfflineExperienceInfo(lastOfflineExp, context);
-        
         // 同步到當前會話
         await _syncOfflineExperience(lastOfflineExp);
+        
+        // 顯示離線經驗值信息（在同步後）
+        if (context != null) {
+          // 在異步操作前檢查 context 是否仍然有效
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              _showOfflineExperienceInfo(lastOfflineExp, context);
+            }
+          });
+        }
       }
       
       // 記錄同步時間

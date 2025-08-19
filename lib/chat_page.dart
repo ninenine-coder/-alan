@@ -36,7 +36,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   bool _isTyping = false;
   bool _showMenu = false;
 
-  String _aiName = '傑米';
+  String _aiName = '捷米';
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
   final GlobalKey<ExperienceDisplayState> _experienceDisplayKey = GlobalKey<ExperienceDisplayState>();
   bool _showWelcomeAnimation = false;
@@ -67,6 +67,43 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     
     // 註冊升級回調
     ExperienceService.addLevelUpCallback(_onLevelUp);
+  }
+
+  /// 獲取選擇的造型圖片
+  Future<String?> _getSelectedStyleImage() async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return null;
+
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      final selectedImage = prefs.getString('selected_style_image_$username');
+      
+      // 如果沒有選擇的造型，返回經典捷米的圖片
+      if (selectedImage == null || selectedImage.isEmpty) {
+        return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片
+      }
+      
+      return selectedImage;
+    } catch (e) {
+      LoggerService.error('Error getting selected style image: $e');
+      return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片作為預設
+    }
+  }
+
+  /// 獲取選擇的頭像圖片
+  Future<String?> _getSelectedAvatarImage() async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return null;
+
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getString('selected_avatar_image_$username');
+    } catch (e) {
+      LoggerService.error('Error getting selected avatar image: $e');
+      return null;
+    }
   }
 
   void _initializeAnimations() {
@@ -470,15 +507,32 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-                                         child: CircleAvatar(
-                       radius: 20,
-                       backgroundColor: Colors.blue.shade400,
-                       child: Icon(
-                         Icons.pets,
-                         color: Colors.white,
-                         size: 24,
-                       ),
-                     ),
+                                                                 child: FutureBuilder<String?>(
+                          future: _getSelectedStyleImage(),
+                          builder: (context, snapshot) {
+                            final imageUrl = snapshot.data;
+                            if (imageUrl != null && imageUrl.isNotEmpty) {
+                              return CircleAvatar(
+                                radius: 20,
+                                backgroundImage: NetworkImage(imageUrl),
+                                onBackgroundImageError: (exception, stackTrace) {
+                                  // 如果圖片載入失敗，使用預設圖標
+                                },
+                                child: null,
+                              );
+                            } else {
+                              return CircleAvatar(
+                                radius: 20,
+                                backgroundColor: Colors.blue.shade400,
+                                child: Icon(
+                                  Icons.pets,
+                                  color: Colors.white,
+                                  size: 24,
+                                ),
+                              );
+                            }
+                          },
+                        ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -587,7 +641,66 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               ],
             ),
           ),
-          if (message.isUser) const SizedBox(width: 40),
+          if (message.isUser)
+            Padding(
+              padding: const EdgeInsets.only(left: 8),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: FutureBuilder<String?>(
+                      future: _getSelectedAvatarImage(),
+                      builder: (context, snapshot) {
+                        final imageUrl = snapshot.data;
+                        if (imageUrl != null && imageUrl.isNotEmpty) {
+                          return CircleAvatar(
+                            radius: 20,
+                            backgroundImage: NetworkImage(imageUrl),
+                            onBackgroundImageError: (exception, stackTrace) {
+                              // 如果圖片載入失敗，使用預設圖標
+                            },
+                            child: imageUrl.isEmpty ? Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 24,
+                            ) : null,
+                          );
+                        } else {
+                          return CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.grey.shade400,
+                            child: Icon(
+                              Icons.person,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          );
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '我',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.grey.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );
@@ -615,15 +728,32 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-                     CircleAvatar(
-             radius: 16,
-             backgroundColor: Colors.blue.shade400,
-             child: Icon(
-               Icons.pets,
-               color: Colors.white,
-               size: 20,
-             ),
-           ),
+                     FutureBuilder<String?>(
+                       future: _getSelectedStyleImage(),
+                       builder: (context, snapshot) {
+                         final imageUrl = snapshot.data;
+                         if (imageUrl != null && imageUrl.isNotEmpty) {
+                           return CircleAvatar(
+                             radius: 16,
+                             backgroundImage: NetworkImage(imageUrl),
+                             onBackgroundImageError: (exception, stackTrace) {
+                               // 如果圖片載入失敗，使用預設圖標
+                             },
+                             child: null,
+                           );
+                         } else {
+                           return CircleAvatar(
+                             radius: 16,
+                             backgroundColor: Colors.blue.shade400,
+                             child: Icon(
+                               Icons.pets,
+                               color: Colors.white,
+                               size: 20,
+                             ),
+                           );
+                         }
+                       },
+                     ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1284,6 +1414,12 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
     return Scaffold(
              appBar: AppBar(
+         leading: IconButton(
+           icon: const Icon(Icons.arrow_back),
+           onPressed: () {
+             Navigator.of(context).pushReplacementNamed('/login');
+           },
+         ),
          title: Row(
            children: [
              Container(
@@ -1299,13 +1435,29 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                    ),
                  ],
                ),
-               child: CircleAvatar(
-                 backgroundColor: Colors.blue.shade400,
-                 child: Icon(
-                   Icons.pets,
-                   color: Colors.white,
-                   size: 20,
-                 ),
+               child: FutureBuilder<String?>(
+                 future: _getSelectedStyleImage(),
+                 builder: (context, snapshot) {
+                   final imageUrl = snapshot.data;
+                   if (imageUrl != null && imageUrl.isNotEmpty) {
+                     return CircleAvatar(
+                       backgroundImage: NetworkImage(imageUrl),
+                       onBackgroundImageError: (exception, stackTrace) {
+                         // 如果圖片載入失敗，使用預設圖標
+                       },
+                       child: null,
+                     );
+                   } else {
+                     return CircleAvatar(
+                       backgroundColor: Colors.blue.shade400,
+                       child: Icon(
+                         Icons.pets,
+                         color: Colors.white,
+                         size: 20,
+                       ),
+                     );
+                   }
+                 },
                ),
              ),
              const SizedBox(width: 12),

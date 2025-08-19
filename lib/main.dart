@@ -8,6 +8,7 @@ import 'pet_page.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
 import 'experience_sync_service.dart';
+import 'store_page.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -108,6 +109,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
         '/': (context) => const MainSelectionPage(),
         '/chat': (context) => const ChatPage(),
         '/pet': (context) => const PetPage(initialPetName: '捷米'),
+        '/store': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments;
+          String? initialCategory;
+          if (args is Map && args['category'] is String) {
+            initialCategory = args['category'] as String?;
+          }
+          return StorePage(initialCategory: initialCategory);
+        },
       },
     );
   }
