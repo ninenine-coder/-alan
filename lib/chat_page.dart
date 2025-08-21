@@ -17,9 +17,10 @@ import 'user_service.dart';
 import 'challenge_service.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
-import 'level_up_animation.dart';
 import 'experience_display.dart';
 import 'metro_quiz_page.dart';
+import 'feature_unlock_service.dart';
+import 'welcome_coin_service.dart';
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -45,6 +46,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   // 預載入的 HTML 內容
   String? _metroQuizHtml;
   
+  // 功能解鎖狀態
+  Map<String, bool> _featureUnlockStatus = {};
+  
 
 
   // 動畫控制器
@@ -68,6 +72,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     // 註冊升級回調
     ExperienceService.addLevelUpCallback(_onLevelUp);
   }
+  
+
 
   /// 獲取選擇的造型圖片
   Future<String?> _getSelectedStyleImage() async {
@@ -79,15 +85,15 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       final prefs = await SharedPreferences.getInstance();
       final selectedImage = prefs.getString('selected_style_image_$username');
       
-      // 如果沒有選擇的造型，返回經典捷米的圖片
+      // 如果沒有選擇的造型，返回造型1的圖片
       if (selectedImage == null || selectedImage.isEmpty) {
-        return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片
+        return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 造型1圖片
       }
       
       return selectedImage;
     } catch (e) {
       LoggerService.error('Error getting selected style image: $e');
-      return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片作為預設
+      return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 造型1圖片作為預設
     }
   }
 
@@ -140,10 +146,23 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   /// 處理升級事件
-  void _onLevelUp(int newLevel) {
+  void _onLevelUp(int newLevel) async {
     if (mounted) {
       LoggerService.info('聊天頁面收到升級事件: 等級 $newLevel');
-      LevelUpAnimationManager.instance.showLevelUpAnimation(context, newLevel);
+      
+      // 更新功能解鎖狀態
+      await FeatureUnlockService.updateUnlockStatusOnLevelUp(newLevel);
+      
+      // 重新載入功能解鎖狀態
+      final newUnlockStatus = await FeatureUnlockService.getUnlockStatus();
+      setState(() {
+        _featureUnlockStatus = newUnlockStatus;
+      });
+      
+      // 刷新金幣顯示
+      _coinDisplayKey.currentState?.refreshCoins();
+      
+      LoggerService.info('功能解鎖狀態已更新: $_featureUnlockStatus');
     }
   }
 
@@ -183,51 +202,74 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       // 載入聊天紀錄
       await _loadMessages();
       
-      final loginCount = userData['loginCount'] ?? 0;
-      LoggerService.debug('User login count = $loginCount');
+      // 檢查是否應該顯示歡迎金幣動畫
+      final hasClaimedWelcomeCoin = await WelcomeCoinService.hasClaimedWelcomeCoin();
+      LoggerService.debug('User has claimed welcome coin: $hasClaimedWelcomeCoin');
       
-      if (loginCount == 1) {
-        LoggerService.info('First login detected, showing animation');
+      if (!hasClaimedWelcomeCoin) {
+        LoggerService.info('Welcome coin not claimed, showing animation');
         await Future.delayed(const Duration(milliseconds: 2000));
         if (mounted) {
           setState(() {
             _showWelcomeAnimation = true;
           });
-          LoggerService.debug('Animation state set to true');
         }
-      } else {
-        LoggerService.debug('Not first login, login count = $loginCount');
       }
-    } else {
-      LoggerService.warning('No user data found');
+      
+      // 初始化功能解鎖狀態
+      await _initializeFeatureUnlockStatus();
+    }
+  }
+
+  /// 初始化功能解鎖狀態
+  Future<void> _initializeFeatureUnlockStatus() async {
+    try {
+      final unlockStatus = await FeatureUnlockService.initializeFeatureUnlockStatus();
+      setState(() {
+        _featureUnlockStatus = unlockStatus;
+      });
+      LoggerService.info('功能解鎖狀態初始化完成: $_featureUnlockStatus');
+    } catch (e) {
+      LoggerService.error('初始化功能解鎖狀態時發生錯誤: $e');
     }
   }
 
   Future<void> _onWelcomeAnimationComplete() async {
     LoggerService.info('Animation complete callback called');
     
-    if (_currentUser != null) {
-      final currentCoins = _currentUser!['coins'] ?? 0;
-      final newCoins = currentCoins + 500;
-      
-      await UserService.updateUserData({'coins': newCoins});
+    // 使用 WelcomeCoinService 來處理金幣領取
+    final success = await WelcomeCoinService.claimWelcomeCoin();
+    
+    if (success) {
+      // 重新載入用戶數據以獲取最新的金幣數量
+      final updatedUserData = await UserService.getCurrentUserData();
       
       setState(() {
-        _currentUser = {..._currentUser!, 'coins': newCoins};
+        _currentUser = updatedUserData;
         _showWelcomeAnimation = false;
       });
       
       _coinDisplayKey.currentState?.refreshCoins();
       
       if (mounted) {
-        _showSuccessSnackBar('成功獲得 500 金幣！');
+        final coinAmount = WelcomeCoinService.getWelcomeCoinAmount();
+        _showSuccessSnackBar('成功獲得 $coinAmount 金幣！');
       }
+    } else {
+      LoggerService.error('Failed to claim welcome coin');
+      setState(() {
+        _showWelcomeAnimation = false;
+      });
     }
   }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    
+    // 設置全局 context 用於升級動畫
+    ExperienceService.setGlobalContext(context);
+    
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _coinDisplayKey.currentState?.refreshCoins();
     });
@@ -309,9 +351,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       _typingAnimationController.repeat();
 
       try {
-        final messageReward = await ChallengeService.handleDailyMessage();
-        if (messageReward) {
-          _coinDisplayKey.currentState?.refreshCoins();
+        // 檢查挑戰任務功能是否已解鎖
+        final isChallengeUnlocked = await FeatureUnlockService.isFeatureUnlocked('挑戰任務');
+        if (isChallengeUnlocked) {
+          final messageReward = await ChallengeService.handleDailyMessage();
+          if (messageReward) {
+            _coinDisplayKey.currentState?.refreshCoins();
+          }
         }
       } catch (e) {
         if (mounted) {
@@ -973,12 +1019,16 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(16),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
           _buildMenuItem(Icons.train, '捷運知識王', Colors.blue),
+          const SizedBox(width: 16),
           _buildMenuItem(Icons.shopping_bag, '商城', Colors.green),
+          const SizedBox(width: 16),
           _buildMenuItem(Icons.pets, '桌寵', Colors.orange),
+          const SizedBox(width: 16),
           _buildMenuItem(Icons.star, '挑戰任務', Colors.purple),
+          const SizedBox(width: 16),
           _buildMenuItem(Icons.emoji_events, '勳章', Colors.amber),
         ],
       ),
@@ -986,126 +1036,103 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   }
 
   Widget _buildMenuItem(IconData icon, String label, Color color) {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: _getUserLevel(),
-      builder: (context, snapshot) {
-        final currentLevel = snapshot.data?['level'] ?? 1;
-        final isUnlocked = _isFeatureUnlocked(label, currentLevel);
-        final requiredLevel = _getRequiredLevel(label);
-        
-        LoggerService.debug('功能檢查: $label, 當前等級: $currentLevel, 需要等級: $requiredLevel, 已解鎖: $isUnlocked');
-        
-                 return GestureDetector(
-           onTap: () {
-             LoggerService.info('點擊菜單項: $label');
-             _handleMenuItemTap(label, requiredLevel, isUnlocked);
-           },
-          child: Container(
-            width: 70,
-            height: 70,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  isUnlocked 
-                      ? color.withValues(alpha: 0.1) 
-                      : Colors.grey.withValues(alpha: 0.1),
-                  isUnlocked 
-                      ? color.withValues(alpha: 0.2) 
-                      : Colors.grey.withValues(alpha: 0.2)
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isUnlocked 
-                    ? color.withValues(alpha: 0.3) 
-                    : Colors.grey.withValues(alpha: 0.3), 
-                width: 1
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: isUnlocked 
-                      ? color.withValues(alpha: 0.2) 
-                      : Colors.grey.withValues(alpha: 0.2),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
+    // 使用預先載入的功能解鎖狀態
+    final isUnlocked = _featureUnlockStatus[label] ?? false;
+    final requiredLevel = FeatureUnlockService.getRequiredLevel(label);
+    
+    LoggerService.debug('功能檢查: $label, 已解鎖: $isUnlocked, 需要等級: $requiredLevel');
+    
+    return GestureDetector(
+      onTap: () {
+        LoggerService.info('點擊菜單項: $label');
+        _handleMenuItemTap(label, requiredLevel, isUnlocked);
+      },
+      child: Container(
+        width: 60,
+        height: 70,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              isUnlocked 
+                  ? color.withValues(alpha: 0.1) 
+                  : Colors.grey.withValues(alpha: 0.1),
+              isUnlocked 
+                  ? color.withValues(alpha: 0.2) 
+                  : Colors.grey.withValues(alpha: 0.2)
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isUnlocked 
+                ? color.withValues(alpha: 0.3) 
+                : Colors.grey.withValues(alpha: 0.3), 
+            width: 1
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isUnlocked 
+                  ? color.withValues(alpha: 0.2) 
+                  : Colors.grey.withValues(alpha: 0.2),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
             ),
-            child: Stack(
-              children: [
-                Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      icon,
-                      size: 28,
+          ],
+        ),
+        child: Stack(
+          children: [
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 24,
+                    color: isUnlocked ? color : Colors.grey.shade400,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
                       color: isUnlocked ? color : Colors.grey.shade400,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: isUnlocked ? color : Colors.grey.shade400,
-                      ),
-                    ),
-                  ],
-                ),
-                if (!isUnlocked)
-                  Positioned(
-                    top: 4,
-                    right: 4,
-                    child: Container(
-                      padding: const EdgeInsets.all(2),
-                      decoration: BoxDecoration(
-                        color: Colors.red.shade600,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.lock,
-                        size: 12,
-                        color: Colors.white,
-                      ),
-                    ),
+                    textAlign: TextAlign.center,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-              ],
+                ],
+              ),
             ),
-          ),
-        );
-      },
+            if (!isUnlocked)
+              Positioned(
+                top: 4,
+                right: 4,
+                child: Container(
+                  padding: const EdgeInsets.all(2),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade600,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Icon(
+                    Icons.lock,
+                    size: 12,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
-  bool _isFeatureUnlocked(String feature, int currentLevel) {
-    final requiredLevel = _getRequiredLevel(feature);
-    return currentLevel >= requiredLevel;
-  }
 
-  Future<Map<String, dynamic>> _getUserLevel() async {
-    try {
-      // 優先使用 ExperienceService
-      final experienceData = await ExperienceService.getCurrentExperience();
-      if (experienceData['level'] != null && experienceData['level'] > 0) {
-        return experienceData;
-      }
-      
-      // 如果 ExperienceService 失敗，從當前用戶資料獲取等級
-      if (_currentUser != null) {
-        final userLevel = _currentUser!['level'] ?? 1;
-        return {'level': userLevel, 'experience': 0, 'progress': 0.0};
-      }
-      
-      // 默認返回等級 1
-      return {'level': 1, 'experience': 0, 'progress': 0.0};
-    } catch (e) {
-      LoggerService.error('獲取用戶等級時發生錯誤: $e');
-      // 如果出錯，返回默認等級 1
-      return {'level': 1, 'experience': 0, 'progress': 0.0};
-    }
-  }
+
+
 
   void _handleMenuItemTap(String label, int requiredLevel, bool isUnlocked) {
     LoggerService.info('點擊菜單項: $label, 需要等級: $requiredLevel, 已解鎖: $isUnlocked');
@@ -1327,22 +1354,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
   }
 
-  int _getRequiredLevel(String feature) {
-    switch (feature) {
-      case '桌寵':
-        return 6; // 需要6等才能解鎖桌寵互動
-      case '商城':
-        return 0; // 商城不需要等級限制，隨時可以進入
-      case '挑戰任務':
-        return 11; // 需要11等才能解鎖挑戰任務
-      case '勳章':
-        return 11; // 需要11等才能解鎖勳章
-      case '捷運知識王':
-        return 0; // 登入就可以玩捷運知識王
-      default:
-        return 1;
-    }
-  }
+
 
   void _showLevelLockDialog(String feature, int requiredLevel) {
     if (!mounted) return;
@@ -1413,13 +1425,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
 
     return Scaffold(
-             appBar: AppBar(
-         leading: IconButton(
-           icon: const Icon(Icons.arrow_back),
-           onPressed: () {
-             Navigator.of(context).pushReplacementNamed('/login');
-           },
-         ),
+                   appBar: AppBar(
+        automaticallyImplyLeading: false,
          title: Row(
            children: [
              Container(
@@ -1493,7 +1500,16 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         ),
         actions: [
           CoinDisplay(key: _coinDisplayKey),
-          const SizedBox(width: 16),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: () {
+              // 跳轉回登入頁面
+              Navigator.of(context).pushReplacementNamed('/login');
+            },
+            tooltip: '登出',
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       extendBodyBehindAppBar: true,
@@ -1538,7 +1554,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           if (_showWelcomeAnimation)
             WelcomeCoinAnimation(
               onAnimationComplete: _onWelcomeAnimationComplete,
-              coinAmount: 500,
+              coinAmount: WelcomeCoinService.getWelcomeCoinAmount(),
             ),
         ],
       ),

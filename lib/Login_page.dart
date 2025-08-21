@@ -113,9 +113,7 @@ Future<void> _login() async {
           MaterialPageRoute(builder: (context) => const WelcomePage()),
         );
       } else {
-        navigator.pushReplacement(
-          MaterialPageRoute(builder: (context) => const ChatPage()),
-        );
+        navigator.pushReplacementNamed('/chat');
       }
     }
   } catch (e) {

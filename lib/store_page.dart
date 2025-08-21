@@ -5,6 +5,7 @@ import 'user_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'logger_service.dart';
 import 'add_item.dart';
+import 'theme_background_service.dart';
 
 class StorePage extends StatefulWidget {
   final String? initialCategory;
@@ -17,8 +18,8 @@ class StorePage extends StatefulWidget {
 
 class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   // 常量定義
-  static const double _cardImageHeight = 120.0;
-  static const double _buttonHeight = 40.0;
+  static const double _cardImageHeight = 110.0;
+  static const double _buttonHeight = 32.0;
   static const double _cardBorderRadius = 12.0;
   static const double _buttonBorderRadius = 8.0;
   static const double _gridChildAspectRatio = 0.75;
@@ -74,10 +75,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     if (_currentUser == null) return;
     
     try {
-      final username = _currentUser!['username'] ?? 'default';
+      final uid = _currentUser!['uid'] ?? 'default';
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
-          .doc(username)
+          .doc(uid)
           .get();
       
       if (userDoc.exists) {
@@ -100,10 +101,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       return Stream.value(null);
     }
     
-    final username = _currentUser!['username'] ?? 'default';
+    final uid = _currentUser!['uid'] ?? 'default';
     return FirebaseFirestore.instance
         .collection('users')
-        .doc(username)
+        .doc(uid)
         .snapshots();
   }
 
@@ -151,9 +152,6 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       }
       
       if (success) {
-        // 更新 Firebase 中的狀態欄位為"已擁有"
-        await _updateItemStatus(product['id'], '已擁有');
-        
         scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Row(
@@ -210,7 +208,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       stream: _getUserPurchasedItemsStream(),
       builder: (context, snapshot) {
         bool isPurchased = false;
-        bool isOwned = status == '已擁有'; // 檢查商品狀態是否為已擁有
+        bool isItemUnavailable = false; // 新增：檢查商品是否不可用
         
         if (snapshot.hasData && snapshot.data != null) {
           final userData = snapshot.data!.data() as Map<String, dynamic>?;
@@ -220,8 +218,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           }
         }
         
-        // 如果商品狀態為已擁有，則顯示為已購買
-        isPurchased = isPurchased || isOwned;
+        // 檢查 Firebase 中商品的狀態欄位
+        isItemUnavailable = status == '已擁有';
         
         return Card(
           margin: const EdgeInsets.all(8),
@@ -294,7 +292,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                     ),
 
                     // 已購買標籤
-                    if (isPurchased)
+                    if (isPurchased || isItemUnavailable)
                       Positioned(
                         top: isClassicItem ? 36 : 8, // 如果是經典款，位置下移
                         left: 8,
@@ -320,7 +318,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               // 內容區域
               Expanded(
                 child: Padding(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(6),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -333,22 +331,20 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
-                      const SizedBox(height: 4),
-
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 1),
                       Text(
                         isClassicItem ? '價格: 免費' : '價格: $price 元',
                         style: TextStyle(
                           color: isClassicItem ? Colors.green.shade700 : Colors.amber.shade700,
                           fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                          fontSize: 11,
                         ),
                       ),
                       Text(
                         '常見度: $popularity',
                         style: TextStyle(
                           color: Colors.grey.shade600,
-                          fontSize: 10,
+                          fontSize: 9,
                         ),
                       ),
                       const Spacer(),
@@ -356,8 +352,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                       Container(
                         width: double.infinity,
                         height: _buttonHeight,
-                        margin: const EdgeInsets.only(top: 8, bottom: 4),
-                        child: isPurchased
+                        margin: const EdgeInsets.only(top: 2, bottom: 0),
+                        child: (isPurchased || isItemUnavailable)
                             ? Container(
                                 decoration: BoxDecoration(
                                   color: Colors.grey.shade200,
@@ -371,15 +367,15 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                                       Icon(
                                         Icons.check_circle,
                                         color: Colors.grey.shade600,
-                                        size: 16,
+                                        size: 12,
                                       ),
-                                      const SizedBox(width: 4),
+                                      const SizedBox(width: 2),
                                       Text(
                                         '已擁有',
                                         style: TextStyle(
                                           color: Colors.grey.shade600,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 12,
+                                          fontSize: 11,
                                         ),
                                       ),
                                     ],
@@ -389,7 +385,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                             : Material(
                                 color: Colors.transparent,
                                 child: InkWell(
-                                  onTap: isOwned ? null : () => _showConfirmDialog(context, {...data, 'id': item.id}),
+                                  onTap: (isPurchased || isItemUnavailable) ? null : () => _showConfirmDialog(context, {...data, 'id': item.id}),
                                   borderRadius: BorderRadius.circular(_buttonBorderRadius),
                                   child: Container(
                                     decoration: BoxDecoration(
@@ -409,7 +405,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                                         style: const TextStyle(
                                           color: Colors.white,
                                           fontWeight: FontWeight.bold,
-                                          fontSize: 12,
+                                          fontSize: 11,
                                         ),
                                       ),
                                     ),
@@ -437,6 +433,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   }
 
   Widget buildCategoryTab(String category) {
+    // 如果是主題桌鋪分類，使用主題背景服務
+    if (category == '主題桌鋪') {
+      return _buildThemeBackgroundTab();
+    }
+    
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection(category)
@@ -535,6 +536,377 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     );
   }
 
+  /// 構建主題背景標籤頁
+  Widget _buildThemeBackgroundTab() {
+    return FutureBuilder<List<String>>(
+      future: ThemeBackgroundService.getUserOwnedThemes(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('載入中...'),
+              ],
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                const SizedBox(height: 16),
+                Text(
+                  '載入主題背景失敗',
+                  style: const TextStyle(fontSize: 16, color: Colors.red),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final ownedThemes = snapshot.data ?? ['主題1'];
+        final allThemes = ThemeBackgroundService.getAllThemeBackgrounds();
+
+        return GridView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: allThemes.length,
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: _gridChildAspectRatio,
+            crossAxisSpacing: 16,
+            mainAxisSpacing: 16,
+          ),
+          itemBuilder: (context, index) {
+            final themeId = allThemes.keys.elementAt(index);
+            final theme = allThemes[themeId]!;
+            final isOwned = ownedThemes.contains(themeId);
+            
+            return TweenAnimationBuilder<double>(
+              duration: Duration(milliseconds: 300 + (index * 50)),
+              tween: Tween(begin: 0.0, end: 1.0),
+              builder: (context, value, child) {
+                return Transform.scale(
+                  scale: value,
+                  child: _buildThemeBackgroundCard(theme, isOwned),
+                );
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// 構建主題背景卡片
+  Widget _buildThemeBackgroundCard(ThemeBackground theme, bool isOwned) {
+    return Card(
+      margin: const EdgeInsets.all(8),
+      elevation: 3,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_cardBorderRadius)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 圖片區域
+          Container(
+            height: _cardImageHeight,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(_cardBorderRadius)),
+              gradient: LinearGradient(
+                colors: ThemeBackgroundService.getThemeGradientColors(theme.id),
+              ),
+            ),
+            child: Stack(
+              children: [
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: ThemeBackgroundService.getThemeGradientColors(theme.id),
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.image,
+                      size: 50,
+                      color: Colors.white.withOpacity(0.7),
+                    ),
+                  ),
+                ),
+                // 已擁有標籤
+                if (isOwned)
+                  Positioned(
+                    top: 8,
+                    left: 8,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: Colors.green.shade600,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: const Text(
+                        '已擁有',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          // 內容區域
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    theme.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    theme.priceText,
+                    style: TextStyle(
+                      color: theme.isFree ? Colors.green.shade700 : Colors.amber.shade700,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    theme.category,
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 9,
+                    ),
+                  ),
+                  const Spacer(),
+                  // 按鈕區域
+                  Container(
+                    width: double.infinity,
+                    height: _buttonHeight,
+                    margin: const EdgeInsets.only(top: 2, bottom: 0),
+                    child: isOwned
+                        ? Container(
+                            decoration: BoxDecoration(
+                              color: Colors.grey.shade200,
+                              borderRadius: BorderRadius.circular(_buttonBorderRadius),
+                              border: Border.all(color: Colors.grey.shade300),
+                            ),
+                            child: Center(
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.check_circle,
+                                    color: Colors.grey.shade600,
+                                    size: 12,
+                                  ),
+                                  const SizedBox(width: 2),
+                                  Text(
+                                    '已擁有',
+                                    style: TextStyle(
+                                      color: Colors.grey.shade600,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              onTap: () => _showThemeBackgroundConfirmDialog(context, theme),
+                              borderRadius: BorderRadius.circular(_buttonBorderRadius),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.blue.shade600,
+                                  borderRadius: BorderRadius.circular(_buttonBorderRadius),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 2,
+                                      offset: const Offset(0, 1),
+                                    ),
+                                  ],
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    theme.isFree ? '領取' : '購買',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 顯示主題背景確認對話框
+  void _showThemeBackgroundConfirmDialog(BuildContext context, ThemeBackground theme) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(
+                theme.isFree ? Icons.card_giftcard : Icons.shopping_cart,
+                color: theme.isFree ? Colors.green.shade600 : Colors.blue.shade600,
+              ),
+              const SizedBox(width: 8),
+              Text(theme.isFree ? '領取主題背景' : '購買主題背景'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('確定要${theme.isFree ? '領取' : '購買'}「${theme.name}」嗎？'),
+              const SizedBox(height: 8),
+              Text(
+                theme.description,
+                style: TextStyle(
+                  color: Colors.grey.shade600,
+                  fontSize: 12,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '價格: ${theme.priceText}',
+                style: TextStyle(
+                  color: theme.isFree ? Colors.green.shade700 : Colors.amber.shade700,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                Navigator.of(context).pop();
+                await _purchaseThemeBackground(theme);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: theme.isFree ? Colors.green.shade600 : Colors.blue.shade600,
+              ),
+              child: Text(theme.isFree ? '領取' : '購買'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// 購買主題背景
+  Future<void> _purchaseThemeBackground(ThemeBackground theme) async {
+    try {
+      final success = await ThemeBackgroundService.purchaseThemeBackground(theme.id);
+      if (success) {
+        // 重新載入用戶數據
+        await _loadPurchasedItems();
+        
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(
+                    theme.isFree ? Icons.card_giftcard : Icons.shopping_cart,
+                    color: Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('${theme.isFree ? '領取' : '購買'}成功！${theme.name} 已加入收藏'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+        
+        // 刷新金幣顯示
+        _coinDisplayKey.currentState?.refreshCoins();
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.error, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('${theme.isFree ? '領取' : '購買'}失敗，請稍後再試'),
+                  ),
+                ],
+              ),
+              backgroundColor: Colors.red.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      LoggerService.error('購買主題背景時發生錯誤: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('操作失敗: $e'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void dispose() {
     _tabController.dispose();
@@ -549,6 +921,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           .collection(currentCategory)
           .doc(itemId)
           .update({'狀態': newStatus});
+      LoggerService.info('商品狀態已更新: $itemId -> $newStatus');
     } catch (e) {
       LoggerService.error('更新商品狀態失敗: $e');
     }
@@ -559,8 +932,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     if (_currentUser == null) return false;
     
     try {
-      final username = _currentUser!['username'] ?? 'default';
-      final userRef = FirebaseFirestore.instance.collection('users').doc(username);
+      final uid = _currentUser!['uid'] ?? 'default';
+      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
       
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         final userDoc = await transaction.get(userRef);
@@ -591,6 +964,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         }
       });
       
+      // 更新 Firebase 中商品的狀態為"已擁有"
+      await _updateItemStatus(product['id'], '已擁有');
+      
       setState(() {
         purchasedItems[product['id']] = true;
       });
@@ -617,8 +993,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     try {
       final success = await CoinService.deductCoins(price);
       if (success) {
-        final username = _currentUser!['username'] ?? 'default';
-        final userRef = FirebaseFirestore.instance.collection('users').doc(username);
+        final uid = _currentUser!['uid'] ?? 'default';
+        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
         
         await FirebaseFirestore.instance.runTransaction((transaction) async {
           final userDoc = await transaction.get(userRef);
@@ -648,6 +1024,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             }
           }
         });
+        
+        // 更新 Firebase 中商品的狀態為"已擁有"
+        await _updateItemStatus(product['id'], '已擁有');
         
         setState(() {
           purchasedItems[product['id']] = true;

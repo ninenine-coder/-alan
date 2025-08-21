@@ -105,9 +105,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       title: '捷米小助手',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(primarySwatch: Colors.blue),
-      initialRoute: '/',
+      initialRoute: '/login',
       routes: {
-        '/': (context) => const MainSelectionPage(),
+        '/login': (context) => const LoginPage(),
         '/chat': (context) => const ChatPage(),
         '/pet': (context) => const PetPage(initialPetName: '捷米'),
         '/medal': (context) => const MedalPage(),
@@ -124,77 +124,4 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 }
 
-class MainSelectionPage extends StatelessWidget {
-  const MainSelectionPage({super.key});
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.blue.shade400,
-              Colors.blue.shade800,
-            ],
-          ),
-        ),
-        child: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.psychology,
-                  size: 120,
-                  color: Colors.white,
-                ),
-                const SizedBox(height: 32),
-                const Text(
-                  '捷米小助手',
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 64),
-                SizedBox(
-                  width: 200,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const LoginPage()),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white,
-                      foregroundColor: Colors.blue.shade800,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      elevation: 5,
-                    ),
-                    child: const Text(
-                      '用戶登入',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                ),
-
-
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

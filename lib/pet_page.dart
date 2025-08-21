@@ -6,6 +6,8 @@ import 'user_service.dart';
 import 'challenge_service.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
+import 'feature_unlock_service.dart';
+import 'theme_background_service.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -87,11 +89,11 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       if (selectedStyleImage != null && selectedStyleImage.isNotEmpty) {
         return selectedStyleImage;
       } else {
-        return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片作為預設
+        return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 造型1圖片作為預設
       }
     } catch (e) {
       LoggerService.error('Error getting selected style image: $e');
-      return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片作為預設
+      return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 造型1圖片作為預設
     }
   }
 
@@ -121,32 +123,36 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     });
 
     try {
-      // 處理桌寵互動任務
-      final interactionReward = await ChallengeService.handlePetInteraction();
-      if (interactionReward) {
-        // 刷新金幣顯示
-        _coinDisplayKey.currentState?.refreshCoins();
-        
-        // 顯示成功訊息
-        if (mounted) {
-          final scaffoldMessenger = ScaffoldMessenger.of(context);
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: const Row(
-                children: [
-                  Icon(Icons.pets, color: Colors.white),
-                  SizedBox(width: 8),
-                  Expanded(
-                    child: Text('完成每日挑戰，請自挑戰任務領取獎勵'),
-                  ),
-                ],
+      // 檢查挑戰任務功能是否已解鎖
+      final isChallengeUnlocked = await FeatureUnlockService.isFeatureUnlocked('挑戰任務');
+      if (isChallengeUnlocked) {
+        // 處理桌寵互動任務
+        final interactionReward = await ChallengeService.handlePetInteraction();
+        if (interactionReward) {
+          // 刷新金幣顯示
+          _coinDisplayKey.currentState?.refreshCoins();
+          
+          // 顯示成功訊息
+          if (mounted) {
+            final scaffoldMessenger = ScaffoldMessenger.of(context);
+            scaffoldMessenger.showSnackBar(
+              SnackBar(
+                content: const Row(
+                  children: [
+                    Icon(Icons.pets, color: Colors.white),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text('完成每日挑戰，請自挑戰任務領取獎勵'),
+                    ),
+                  ],
+                ),
+                backgroundColor: Colors.green.shade600,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                duration: Duration(seconds: 3),
               ),
-              backgroundColor: Colors.green.shade600,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              duration: Duration(seconds: 3),
-            ),
-          );
+            );
+          }
         }
       }
     } catch (e) {
@@ -303,6 +309,23 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
                         color: Colors.black87,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // 鉛筆編輯按鈕
+                    GestureDetector(
+                      onTap: () => _showEditNameDialog(),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.blue.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          Icons.edit,
+                          size: 16,
+                          color: Colors.blue.shade600,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -912,7 +935,7 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
                   child: Stack(
                     children: [
                       // 圖片
-                      imageUrl.isNotEmpty && imageUrl != '""'
+                      imageUrl.isNotEmpty && imageUrl != '""' && category != '主題桌布'
                           ? Image.network(
                               imageUrl,
                               width: double.infinity,
@@ -934,7 +957,9 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
                                 return _buildNoImagePlaceholder();
                               },
                             )
-                          : _buildNoImagePlaceholder(),
+                          : category == '主題桌布'
+                              ? _buildThemeBackgroundPlaceholder(item)
+                              : _buildNoImagePlaceholder(),
                       // 未擁有標籤
                       if (!isOwned)
                         Positioned(
@@ -1026,13 +1051,53 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     );
   }
 
+  Widget _buildThemeBackgroundPlaceholder(Map<String, dynamic> item) {
+    final themeId = item['id'] ?? '主題1';
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: ThemeBackgroundService.getThemeGradientColors(themeId),
+        ),
+      ),
+      child: const Center(
+        child: Icon(
+          Icons.image,
+          color: Colors.white,
+          size: 32,
+        ),
+      ),
+    );
+  }
+
 
 
   /// 獲取指定類別中狀態為「已擁有」的商品
   Future<List<Map<String, dynamic>>> _getOwnedItemsByCategory(String category) async {
     try {
+      // 如果是主題桌布分類，使用主題背景服務
+      if (category == '主題桌布') {
+        return await _getOwnedThemeBackgrounds();
+      }
+      
       // 映射類別名稱
       final storeCategory = _mapToStoreCategory(category);
+      
+      // 獲取當前用戶資料
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return [];
+      
+      final uid = userData['uid'] ?? 'default';
+      
+      // 從用戶文檔獲取已購買的商品列表
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      
+      if (!userDoc.exists) return [];
+      
+      final userDocData = userDoc.data() as Map<String, dynamic>;
+      final purchasedItemIds = List<String>.from(userDocData['purchasedItems'] ?? []);
       
       // 從 Firebase 讀取該類別的所有商品
       final querySnapshot = await FirebaseFirestore.instance
@@ -1043,17 +1108,21 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
-        final status = data['狀態'] ?? data['status'] ?? '購買';
+        // 檢查該商品是否在用戶的已購買列表中
+        final isOwned = purchasedItemIds.contains(doc.id);
+        // 檢查 Firebase 中商品的狀態欄位
+        final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
+        final isFirebaseOwned = firebaseStatus == '已擁有';
         
-        // 如果商品狀態為「已擁有」，則添加到列表中
-        if (status == '已擁有') {
+        // 如果用戶已購買或 Firebase 狀態為已擁有，則顯示
+        if (isOwned || isFirebaseOwned) {
           ownedItems.add({
             'id': doc.id,
             'name': data['name'] ?? '未命名商品',
             '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
             'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
             'category': category,
-            'status': status,
+            'status': '已擁有', // 標記為已擁有
           });
         }
       }
@@ -1065,11 +1134,64 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     }
   }
 
+  /// 獲取已擁有的主題背景
+  Future<List<Map<String, dynamic>>> _getOwnedThemeBackgrounds() async {
+    try {
+      final allThemes = ThemeBackgroundService.getAllThemeBackgrounds();
+      final ownedThemes = await ThemeBackgroundService.getUserOwnedThemes();
+      
+      final List<Map<String, dynamic>> ownedThemeItems = [];
+      
+      for (final theme in allThemes.values) {
+        if (ownedThemes.contains(theme.id)) {
+          ownedThemeItems.add({
+            'id': theme.id,
+            'name': theme.name,
+            '圖片': '',
+            'imageUrl': '',
+            'category': '主題桌布',
+            'status': '已擁有',
+            'description': theme.description,
+            'price': theme.price,
+            'isFree': theme.isFree,
+          });
+        }
+      }
+      
+      return ownedThemeItems;
+    } catch (e) {
+      LoggerService.error('Error getting owned theme backgrounds: $e');
+      return [];
+    }
+  }
+
   /// 獲取指定類別中的所有商品（已擁有 + 未擁有）
   Future<List<Map<String, dynamic>>> _getAllItemsByCategory(String category) async {
     try {
+      // 如果是主題桌布分類，使用主題背景服務
+      if (category == '主題桌布') {
+        return await _getAllThemeBackgrounds();
+      }
+      
       // 映射類別名稱
       final storeCategory = _mapToStoreCategory(category);
+      
+      // 獲取當前用戶資料
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return [];
+      
+      final uid = userData['uid'] ?? 'default';
+      
+      // 從用戶文檔獲取已購買的商品列表
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(uid)
+          .get();
+      
+      if (!userDoc.exists) return [];
+      
+      final userDocData = userDoc.data() as Map<String, dynamic>;
+      final purchasedItemIds = List<String>.from(userDocData['purchasedItems'] ?? []);
       
       // 從 Firebase 讀取該類別的所有商品
       final querySnapshot = await FirebaseFirestore.instance
@@ -1080,7 +1202,11 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
-        final status = data['狀態'] ?? data['status'] ?? '購買';
+        // 檢查該商品是否在用戶的已購買列表中
+        final isOwned = purchasedItemIds.contains(doc.id);
+        // 檢查 Firebase 中商品的狀態欄位
+        final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
+        final isFirebaseOwned = firebaseStatus == '已擁有';
         
         allItems.add({
           'id': doc.id,
@@ -1088,7 +1214,7 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
           '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
           'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
           'category': category,
-          'status': status,
+          'status': (isOwned || isFirebaseOwned) ? '已擁有' : '未擁有',
         });
       }
       
@@ -1104,6 +1230,46 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       return allItems;
     } catch (e) {
       LoggerService.error('Error getting all items for category $category: $e');
+      return [];
+    }
+  }
+
+  /// 獲取所有主題背景
+  Future<List<Map<String, dynamic>>> _getAllThemeBackgrounds() async {
+    try {
+      final allThemes = ThemeBackgroundService.getAllThemeBackgrounds();
+      final ownedThemes = await ThemeBackgroundService.getUserOwnedThemes();
+      
+      final List<Map<String, dynamic>> themeItems = [];
+      
+      for (final theme in allThemes.values) {
+        final isOwned = ownedThemes.contains(theme.id);
+        
+        themeItems.add({
+          'id': theme.id,
+          'name': theme.name,
+          '圖片': '',
+          'imageUrl': '',
+          'category': '主題桌布',
+          'status': isOwned ? '已擁有' : '未擁有',
+          'description': theme.description,
+          'price': theme.price,
+          'isFree': theme.isFree,
+        });
+      }
+      
+      // 排序：已擁有的主題在前，未擁有的主題在後
+      themeItems.sort((a, b) {
+        final aOwned = a['status'] == '已擁有';
+        final bOwned = b['status'] == '已擁有';
+        if (aOwned && !bOwned) return -1;
+        if (!aOwned && bOwned) return 1;
+        return 0;
+      });
+      
+      return themeItems;
+    } catch (e) {
+      LoggerService.error('Error getting all theme backgrounds: $e');
       return [];
     }
   }
@@ -1162,6 +1328,14 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
         setState(() {
           _selectedAvatarItem = itemName;
         });
+        
+        if (mounted) {
+          // 顯示視覺反饋
+          _showSelectionFeedback(context, itemName, itemImageUrl, category);
+        }
+      } else if (category == '主題桌布') {
+        // 保存選擇的主題背景
+        await ThemeBackgroundService.setThemeBackground(item['id']);
         
         if (mounted) {
           // 顯示視覺反饋
@@ -1296,9 +1470,117 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     );
   }
 
+  /// 顯示編輯名字對話框
+  void _showEditNameDialog() {
+    final TextEditingController nameController = TextEditingController(text: petName);
+    
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.edit, color: Colors.blue.shade600),
+              const SizedBox(width: 8),
+              const Text('修改名字'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text(
+                '請輸入新的名字：',
+                style: TextStyle(fontSize: 16),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: nameController,
+                decoration: InputDecoration(
+                  hintText: '輸入新名字',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+                  ),
+                ),
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('取消'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                final newName = nameController.text.trim();
+                if (newName.isNotEmpty) {
+                  await _updatePetName(newName);
+                  Navigator.of(context).pop(newName); // 返回新名字給 chat_page
+                }
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade600,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('確定'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
+  /// 更新寵物名字
+  Future<void> _updatePetName(String newName) async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return;
 
-
-
-
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      
+      // 保存新名字到本地存儲
+      await prefs.setString('ai_name_$username', newName);
+      
+      // 更新狀態
+      setState(() {
+        petName = newName;
+      });
+      
+      // 顯示成功訊息
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('名字已更新為：$newName'),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      
+      LoggerService.info('Pet name updated to: $newName');
+    } catch (e) {
+      LoggerService.error('Error updating pet name: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('更新名字失敗，請稍後再試'),
+            backgroundColor: Colors.red.shade600,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
 }

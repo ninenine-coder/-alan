@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'user_service.dart';
 import 'coin_service.dart';
+import 'feature_unlock_service.dart';
 
 class ChallengeService {
   static const String _dailyTasksKey = 'daily_challenge_tasks';
@@ -275,6 +276,11 @@ class ChallengeService {
 
   // 領取任務獎勵
   static Future<bool> claimReward(String taskId) async {
+    // 檢查挑戰任務功能是否已解鎖
+    if (!await isChallengeFeatureUnlocked()) {
+      return false; // 功能未解鎖，不允許領取獎勵
+    }
+
     if (!await canClaimReward(taskId)) {
       return false;
     }
@@ -293,6 +299,11 @@ class ChallengeService {
 
   // 領取每周任務獎勵
   static Future<bool> claimWeeklyReward(String taskId) async {
+    // 檢查挑戰任務功能是否已解鎖
+    if (!await isChallengeFeatureUnlocked()) {
+      return false; // 功能未解鎖，不允許領取獎勵
+    }
+
     if (!await canClaimWeeklyReward(taskId)) {
       return false;
     }
@@ -361,6 +372,11 @@ class ChallengeService {
 
   // 處理捷運打卡任務
   static Future<bool> handleMetroCheckin() async {
+    // 檢查挑戰任務功能是否已解鎖
+    if (!await isChallengeFeatureUnlocked()) {
+      return false; // 功能未解鎖，不給予獎勵
+    }
+
     if (await canClaimReward(taskMetroCheckin)) {
       return await claimReward(taskMetroCheckin);
     }
@@ -369,6 +385,11 @@ class ChallengeService {
 
   // 處理桌寵互動任務
   static Future<bool> handlePetInteraction() async {
+    // 檢查挑戰任務功能是否已解鎖
+    if (!await isChallengeFeatureUnlocked()) {
+      return false; // 功能未解鎖，不給予獎勵
+    }
+
     if (await canClaimReward(taskPetInteraction)) {
       return await claimReward(taskPetInteraction);
     }
@@ -377,6 +398,11 @@ class ChallengeService {
 
   // 處理每日訊息任務
   static Future<bool> handleDailyMessage() async {
+    // 檢查挑戰任務功能是否已解鎖
+    if (!await isChallengeFeatureUnlocked()) {
+      return false; // 功能未解鎖，不給予獎勵
+    }
+
     final prefs = await SharedPreferences.getInstance();
     final today = DateTime.now().toIso8601String().split('T')[0];
     final lastMessageDate = prefs.getString(_lastMessageDateKey);
@@ -441,6 +467,15 @@ class ChallengeService {
     }
     
     return prefs.getInt(_dailyMessageCountKey) ?? 0;
+  }
+
+  /// 檢查挑戰任務功能是否已解鎖
+  static Future<bool> isChallengeFeatureUnlocked() async {
+    try {
+      return await FeatureUnlockService.isFeatureUnlocked('挑戰任務');
+    } catch (e) {
+      return false;
+    }
   }
 
   static Future<void> completeDailyTask(String taskId) async {

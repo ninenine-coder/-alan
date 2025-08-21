@@ -1,8 +1,10 @@
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/material.dart';
 import 'user_service.dart';
 import 'logger_service.dart';
+import 'level_up_reward_service.dart';
 
 // 升級回調函數類型
 typedef LevelUpCallback = void Function(int newLevel);
@@ -14,6 +16,19 @@ class ExperienceService {
   
   // 升級回調列表
   static final List<LevelUpCallback> _levelUpCallbacks = [];
+  
+  // 全局 context 用於顯示升級動畫
+  static BuildContext? _globalContext;
+  
+  /// 設置全局 context（在應用啟動時調用）
+  static void setGlobalContext(BuildContext context) {
+    _globalContext = context;
+  }
+  
+  /// 清除全局 context
+  static void clearGlobalContext() {
+    _globalContext = null;
+  }
   
   // 等級經驗值需求配置（未來可能使用）
   // static const Map<String, int> _levelRequirements = {
@@ -221,9 +236,20 @@ class ExperienceService {
         // 檢查是否升級
         if (newLevel > currentLevel) {
           LoggerService.info('Level up! New level: $newLevel');
-          await _handleLevelUp(newLevel);
           
-          // 觸發所有升級回調
+          // 處理升級事件
+          await _handleLevelUpWithReward(newLevel);
+          
+          // 如果有全局 context，顯示升級動畫和獎勵
+          if (_globalContext != null) {
+            try {
+              await LevelUpRewardService.handleLevelUp(newLevel, _globalContext!);
+            } catch (e) {
+              LoggerService.error('Error showing level up animation: $e');
+            }
+          }
+          
+          // 觸發所有升級回調（這些回調會處理功能解鎖等）
           for (final callback in _levelUpCallbacks) {
             try {
               callback(newLevel);
@@ -381,8 +407,8 @@ class ExperienceService {
     }
   }
 
-  /// 處理升級事件
-  static Future<void> _handleLevelUp(int newLevel) async {
+  /// 處理升級事件（包含獎勵）
+  static Future<void> _handleLevelUpWithReward(int newLevel) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -405,6 +431,8 @@ class ExperienceService {
       LoggerService.error('Error handling level up: $e');
     }
   }
+
+
 
   /// 獲取指定等級解鎖的功能
   static List<String> _getUnlockedFeatures(int level) {

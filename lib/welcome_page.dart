@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
-import 'chat_page.dart';
 import 'user_service.dart';
-import 'login_status_page.dart';
+import 'subscription_service.dart';
 
 class WelcomePage extends StatefulWidget {
   const WelcomePage({super.key});
@@ -24,19 +23,89 @@ class _WelcomePageState extends State<WelcomePage> {
     setState(() {
       _currentUser = userData;
     });
+    
+    // 初始化用戶為免費版（如果還沒有訂閱狀態）
+    if (userData != null) {
+      try {
+        await SubscriptionService.initializeAsFreeUser();
+      } catch (e) {
+        // 忽略錯誤，因為可能已經有訂閱狀態
+      }
+    }
   }
 
-  void _startUsing() {
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => const ChatPage()),
+  void _upgradeToPremium() async {
+    try {
+      await SubscriptionService.upgradeToPremium();
+      _showSuccessDialog('升級成功！', '您已成功升級為 Premium 用戶，現在可以享受桌寵功能了！');
+    } catch (e) {
+      _showErrorDialog('升級失敗', '升級過程中發生錯誤，請稍後再試。');
+    }
+  }
+
+  void _startFreeTrial() async {
+    try {
+      final hasStartedTrial = await SubscriptionService.hasStartedTrial();
+      if (hasStartedTrial) {
+        _showErrorDialog('試用已開始', '您已經開始過免費試用，無法重複開始。');
+        return;
+      }
+
+      await SubscriptionService.startFreeTrial();
+      _showSuccessDialog('試用開始！', '您已成功開始 6 個月免費試用，現在可以享受桌寵功能了！');
+    } catch (e) {
+      _showErrorDialog('試用失敗', '開始試用過程中發生錯誤，請稍後再試。');
+    }
+  }
+
+  void _showSuccessDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.green.shade600),
+              const SizedBox(width: 8),
+              Text(title),
+            ],
+          ),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                Navigator.pushReplacementNamed(context, '/chat');
+              },
+              child: const Text('開始使用'),
+            ),
+          ],
+        );
+      },
     );
   }
 
-  void _showLoginStatus() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const LoginStatusPage()),
+  void _showErrorDialog(String title, String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: Row(
+            children: [
+              Icon(Icons.error, color: Colors.red.shade600),
+              const SizedBox(width: 8),
+              Text(title),
+            ],
+          ),
+          content: Text(message),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('確定'),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -112,9 +181,10 @@ class _WelcomePageState extends State<WelcomePage> {
                           ),
                           const SizedBox(height: 15),
                           _buildFeatureCard(
-                            icon: Icons.psychology,
-                            title: '心理諮詢',
-                            description: '專業的心理健康支持，幫助您保持積極心態',
+                            icon: Icons.pets,
+                            title: '桌寵功能',
+                            description: 'Premium專屬：與可愛的桌寵互動，享受陪伴樂趣',
+                            isPremium: true,
                           ),
                           const SizedBox(height: 15),
                           _buildFeatureCard(
@@ -132,22 +202,22 @@ class _WelcomePageState extends State<WelcomePage> {
                     padding: const EdgeInsets.all(20),
                     child: Column(
                       children: [
-                        // 開始使用按鈕
+                        // 升級成 Premium 按鈕
                         SizedBox(
                           width: double.infinity,
                           height: 50,
                           child: ElevatedButton(
-                            onPressed: _startUsing,
+                            onPressed: _upgradeToPremium,
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.white,
-                              foregroundColor: Colors.blue.shade800,
+                              backgroundColor: Colors.amber.shade600,
+                              foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
                               ),
                               elevation: 5,
                             ),
                             child: const Text(
-                              '開始使用',
+                              '升級成 Premium',
                               style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
@@ -156,12 +226,12 @@ class _WelcomePageState extends State<WelcomePage> {
                           ),
                         ),
                         const SizedBox(height: 15),
-                        // 查看登入狀態按鈕
+                        // 免費體驗六個月按鈕
                         SizedBox(
                           width: double.infinity,
                           height: 45,
                           child: OutlinedButton(
-                            onPressed: _showLoginStatus,
+                            onPressed: _startFreeTrial,
                             style: OutlinedButton.styleFrom(
                               foregroundColor: Colors.white,
                               side: const BorderSide(color: Colors.white, width: 2),
@@ -170,7 +240,7 @@ class _WelcomePageState extends State<WelcomePage> {
                               ),
                             ),
                             child: const Text(
-                              '查看登入狀態',
+                              '免費體驗六個月',
                               style: TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.bold,
@@ -196,17 +266,22 @@ class _WelcomePageState extends State<WelcomePage> {
     required IconData icon,
     required String title,
     required String description,
+    bool isPremium = false,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-          width: 1,
+          return Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: isPremium 
+              ? Colors.amber.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(15),
+          border: Border.all(
+            color: isPremium 
+                ? Colors.amber.withValues(alpha: 0.6)
+                : Colors.white.withValues(alpha: 0.2),
+            width: isPremium ? 2 : 1,
+          ),
         ),
-      ),
       child: Row(
         children: [
           Container(
@@ -218,7 +293,7 @@ class _WelcomePageState extends State<WelcomePage> {
             ),
             child: Icon(
               icon,
-              color: Colors.white,
+              color: isPremium ? Colors.amber.shade300 : Colors.white,
               size: 30,
             ),
           ),
@@ -229,10 +304,10 @@ class _WelcomePageState extends State<WelcomePage> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.white,
+                    color: isPremium ? Colors.amber.shade300 : Colors.white,
                   ),
                 ),
                 const SizedBox(height: 5),
