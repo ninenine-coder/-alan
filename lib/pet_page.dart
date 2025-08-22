@@ -8,6 +8,7 @@ import 'logger_service.dart';
 import 'experience_service.dart';
 import 'feature_unlock_service.dart';
 import 'theme_background_service.dart';
+import 'theme_background_widget.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -18,7 +19,7 @@ class PetPage extends StatefulWidget {
   State<PetPage> createState() => _PetPageState();
 }
 
-class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
+class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   late String petName;
   final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
   bool _isInteracting = false;
@@ -27,6 +28,11 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
   bool _showUnownedItems = false; // 添加狀態變數
   String? _selectedStyleItem; // 選中的造型項目
   String? _selectedAvatarItem; // 選中的頭像項目
+  String? _selectedEffectItem; // 選中的特效項目
+  String? _selectedThemeItem; // 選中的主題桌布項目
+  String? _selectedFoodItem; // 選中的飼料項目
+  
+
 
   @override
   void initState() {
@@ -42,6 +48,17 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     _backButtonAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
       CurvedAnimation(parent: _backButtonController, curve: Curves.easeInOut),
     );
+    
+    // 初始化背包選單動畫
+    _backpackAnimationController = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _backpackAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _backpackAnimationController, curve: Curves.easeInOut),
+    );
+    
+
   }
 
   // 將背包彈窗中的分類名稱對應到商城的標籤名稱
@@ -69,6 +86,21 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
         final selectedAvatar = prefs.getString('selected_avatar_$username');
         setState(() {
           _selectedAvatarItem = selectedAvatar;
+        });
+      } else if (category == '特效') {
+        final selectedEffect = prefs.getString('selected_effect_$username');
+        setState(() {
+          _selectedEffectItem = selectedEffect;
+        });
+      } else if (category == '主題桌布') {
+        final selectedTheme = prefs.getString('selected_theme_$username');
+        setState(() {
+          _selectedThemeItem = selectedTheme;
+        });
+      } else if (category == '飼料') {
+        final selectedFood = prefs.getString('selected_food_$username');
+        setState(() {
+          _selectedFoodItem = selectedFood;
         });
       }
     } catch (e) {
@@ -167,30 +199,35 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
   @override
   void dispose() {
     _backButtonController.dispose();
+    _backpackAnimationController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            // 頂部狀態欄
-            _buildStatusBar(),
-            
-            // 用戶資料區域
-            _buildUserProfileSection(),
-            
-            // 中央寵物角色
-            Expanded(
-              child: _buildPetCharacter(),
-            ),
-            
-                         // 任務清單區域
-             _buildTaskListSection(),
-          ],
+      backgroundColor: Colors.transparent,
+      body: ThemeBackgroundListener(
+        overlayColor: Colors.white,
+        overlayOpacity: 0.3,
+        child: SafeArea(
+          child: Column(
+            children: [
+              // 頂部狀態欄
+              _buildStatusBar(),
+              
+              // 用戶資料區域
+              _buildUserProfileSection(),
+              
+              // 中央寵物角色
+              Expanded(
+                child: _buildPetCharacter(),
+              ),
+              
+              // 底部背包區域
+              _buildBackpackSection(),
+            ],
+          ),
         ),
       ),
     );
@@ -269,17 +306,52 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
             builder: (context, snapshot) {
               final imageUrl = snapshot.data;
               if (imageUrl != null && imageUrl.isNotEmpty) {
-                return CircleAvatar(
-                  radius: 20,
-                  backgroundImage: NetworkImage(imageUrl),
-                  onBackgroundImageError: (exception, stackTrace) {
-                    // 如果圖片載入失敗，使用預設圖標
-                  },
-                  child: imageUrl.isEmpty ? Icon(
-                    Icons.pets,
-                    color: Colors.white,
-                    size: 24,
-                  ) : null,
+                return ClipOval(
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    child: Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade400,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              value: loadingProgress.expectedTotalBytes != null
+                                  ? loadingProgress.cumulativeBytesLoaded / 
+                                    loadingProgress.expectedTotalBytes!
+                                  : null,
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade400,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            Icons.pets,
+                            color: Colors.white,
+                            size: 24,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 );
               } else {
                 return CircleAvatar(
@@ -610,93 +682,146 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
     );
   }
 
-  Widget _buildTaskListSection() {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            '我的背包',
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: Colors.black87,
+  // 背包選單相關
+  bool _showBackpack = false;
+  late AnimationController _backpackAnimationController;
+  late Animation<double> _backpackAnimation;
+
+  Widget _buildBackpackSection() {
+    return Column(
+      children: [
+        // 隱形按鈕區域
+        GestureDetector(
+          onTap: () {
+            setState(() {
+              _showBackpack = !_showBackpack;
+            });
+            if (_showBackpack) {
+              _backpackAnimationController.forward();
+            } else {
+              _backpackAnimationController.reverse();
+            }
+          },
+          child: Container(
+            height: 20,
+            width: double.infinity,
+            color: Colors.transparent,
+          ),
+        ),
+        
+        // 背包選單
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          height: _showBackpack ? 200 : 0,
+          child: AnimatedOpacity(
+            duration: const Duration(milliseconds: 300),
+            opacity: _showBackpack ? 1.0 : 0.0,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.white.withValues(alpha: 0.9), Colors.grey.shade50.withValues(alpha: 0.9)],
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 標題
+                  Row(
+                    children: [
+                      Icon(Icons.backpack, color: Colors.orange.shade600, size: 24),
+                      const SizedBox(width: 8),
+                      Text(
+                        '我的背包',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  
+                  // 背包分類網格
+                  GridView.count(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    crossAxisCount: 3,
+                    crossAxisSpacing: 12,
+                    mainAxisSpacing: 12,
+                    childAspectRatio: 0.8,
+                    children: [
+                      _buildBackpackCategory('造型', Icons.face, Colors.blue),
+                      _buildBackpackCategory('特效', Icons.auto_awesome, Colors.purple),
+                      _buildBackpackCategory('飼料', Icons.restaurant, Colors.green),
+                      _buildBackpackCategory('頭像', Icons.account_circle, Colors.teal),
+                      _buildBackpackCategory('主題桌布', Icons.table_bar, Colors.indigo),
+                      Container(), // 空的容器保持網格對齊
+                    ],
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: 16),
-          // 第一行：造型、特效、飼料
-          Row(
-            children: [
-              Expanded(child: _buildBackpackItem('造型', Icons.face)),
-              const SizedBox(width: 8),
-              Expanded(child: _buildBackpackItem('特效', Icons.auto_awesome)),
-              const SizedBox(width: 8),
-              Expanded(child: _buildBackpackItem('飼料', Icons.restaurant)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          // 第二行：頭像、主題桌布
-          Row(
-            children: [
-              Expanded(child: _buildBackpackItem('頭像', Icons.account_circle)),
-              const SizedBox(width: 8),
-              Expanded(child: _buildBackpackItem('主題桌布', Icons.table_bar)),
-            ],
-          ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
-  Widget _buildBackpackItem(String title, IconData icon) {
+  Widget _buildBackpackCategory(String title, IconData icon, Color color) {
     return GestureDetector(
       onTap: () {
-        // 處理背包項目點擊 - 顯示對話框
+        // 顯示該分類的詳細內容
         _showCategoryDialog(title);
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          gradient: LinearGradient(
+            colors: [
+              color.withValues(alpha: 0.1),
+              color.withValues(alpha: 0.2),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: color.withValues(alpha: 0.3),
+            width: 1,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withValues(alpha: 0.1),
-              blurRadius: 4,
+              color: color.withValues(alpha: 0.2),
+              blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // 圖標
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: Colors.blue[100],
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(
-                icon,
-                color: Colors.blue[600],
-                size: 24,
-              ),
+            Icon(
+              icon,
+              size: 32,
+              color: color,
             ),
             const SizedBox(height: 8),
-            // 標題
             Text(
               title,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: Colors.black87,
+                color: color,
               ),
               textAlign: TextAlign.center,
             ),
@@ -705,6 +830,10 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       ),
     );
   }
+
+
+
+
 
   void _showCategoryDialog(String category) {
     // 重置狀態
@@ -901,6 +1030,12 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       isSelected = _selectedStyleItem == name;
     } else if (category == '頭像') {
       isSelected = _selectedAvatarItem == name;
+    } else if (category == '特效') {
+      isSelected = _selectedEffectItem == name;
+    } else if (category == '主題桌布') {
+      isSelected = _selectedThemeItem == name;
+    } else if (category == '飼料') {
+      isSelected = _selectedFoodItem == name;
     }
     
     return Card(
@@ -1052,21 +1187,87 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
   }
 
   Widget _buildThemeBackgroundPlaceholder(Map<String, dynamic> item) {
-    final themeId = item['id'] ?? '主題1';
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: ThemeBackgroundService.getThemeGradientColors(themeId),
+    final imageUrl = item['圖片'] ?? item['imageUrl'] ?? '';
+    final name = item['name'] ?? '未命名主題';
+    
+    LoggerService.debug('主題桌布圖片 URL: $imageUrl, 名稱: $name');
+    
+    if (imageUrl.isNotEmpty && imageUrl != '""') {
+      return Image.network(
+        imageUrl,
+        width: double.infinity,
+        height: double.infinity,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          LoggerService.error('主題桌布圖片載入失敗: $error, URL: $imageUrl');
+          return Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.blue.shade100, Colors.blue.shade200],
+              ),
+            ),
+            child: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.image_not_supported_outlined,
+                    color: Colors.grey.shade400,
+                    size: 32,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '圖片載入失敗',
+                    style: TextStyle(
+                      color: Colors.grey.shade600,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    } else {
+      return Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            colors: [Colors.blue.shade100, Colors.blue.shade200],
+          ),
         ),
-      ),
-      child: const Center(
-        child: Icon(
-          Icons.image,
-          color: Colors.white,
-          size: 32,
+        child: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.image,
+                color: Colors.white,
+                size: 32,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '無圖片',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                ),
+              ),
+            ],
+          ),
         ),
-      ),
-    );
+      );
+    }
   }
 
 
@@ -1082,23 +1283,6 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       // 映射類別名稱
       final storeCategory = _mapToStoreCategory(category);
       
-      // 獲取當前用戶資料
-      final userData = await UserService.getCurrentUserData();
-      if (userData == null) return [];
-      
-      final uid = userData['uid'] ?? 'default';
-      
-      // 從用戶文檔獲取已購買的商品列表
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-      
-      if (!userDoc.exists) return [];
-      
-      final userDocData = userDoc.data() as Map<String, dynamic>;
-      final purchasedItemIds = List<String>.from(userDocData['purchasedItems'] ?? []);
-      
       // 從 Firebase 讀取該類別的所有商品
       final querySnapshot = await FirebaseFirestore.instance
           .collection(storeCategory)
@@ -1108,25 +1292,24 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
       
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
-        // 檢查該商品是否在用戶的已購買列表中
-        final isOwned = purchasedItemIds.contains(doc.id);
         // 檢查 Firebase 中商品的狀態欄位
         final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
         final isFirebaseOwned = firebaseStatus == '已擁有';
         
-        // 如果用戶已購買或 Firebase 狀態為已擁有，則顯示
-        if (isOwned || isFirebaseOwned) {
+        // 如果 Firebase 狀態為已擁有，則顯示
+        if (isFirebaseOwned) {
           ownedItems.add({
             'id': doc.id,
             'name': data['name'] ?? '未命名商品',
             '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
             'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
             'category': category,
-            'status': '已擁有', // 標記為已擁有
+            'status': '已擁有',
           });
         }
       }
       
+      LoggerService.info('獲取到 ${ownedItems.length} 個已擁有的 $category 商品');
       return ownedItems;
     } catch (e) {
       LoggerService.error('Error getting owned items for category $category: $e');
@@ -1137,27 +1320,43 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
   /// 獲取已擁有的主題背景
   Future<List<Map<String, dynamic>>> _getOwnedThemeBackgrounds() async {
     try {
-      final allThemes = ThemeBackgroundService.getAllThemeBackgrounds();
-      final ownedThemes = await ThemeBackgroundService.getUserOwnedThemes();
+      // 從 Firebase 獲取主題桌布數據
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('主題桌鋪')
+          .get();
       
       final List<Map<String, dynamic>> ownedThemeItems = [];
       
-      for (final theme in allThemes.values) {
-        if (ownedThemes.contains(theme.id)) {
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        // 檢查 Firebase 中商品的狀態欄位
+        final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
+        final isFirebaseOwned = firebaseStatus == '已擁有';
+        
+        // 嘗試從多個可能的欄位獲取圖片 URL
+        final imageUrl = data['圖片'] ?? data['imageUrl'] ?? data['image'] ?? data['url'] ?? data['img'] ?? '';
+        
+        LoggerService.debug('主題桌布資料 - ID: ${doc.id}, 名稱: ${data['name']}, 狀態: $firebaseStatus, 圖片URL: $imageUrl');
+        
+        // 如果 Firebase 狀態為已擁有，則顯示
+        if (isFirebaseOwned) {
           ownedThemeItems.add({
-            'id': theme.id,
-            'name': theme.name,
-            '圖片': '',
-            'imageUrl': '',
+            'id': doc.id,
+            'name': data['name'] ?? '未命名主題',
+            '圖片': imageUrl,
+            'imageUrl': imageUrl,
             'category': '主題桌布',
             'status': '已擁有',
-            'description': theme.description,
-            'price': theme.price,
-            'isFree': theme.isFree,
+            'description': data['description'] ?? '',
+            'price': data['price'] ?? data['價格'] ?? 0,
+            'isFree': (data['price'] ?? data['價格'] ?? 0) == 0,
           });
+          
+          LoggerService.info('已擁有主題桌布: ${data['name']}, 圖片: $imageUrl');
         }
       }
       
+      LoggerService.info('獲取到 ${ownedThemeItems.length} 個已擁有的主題背景');
       return ownedThemeItems;
     } catch (e) {
       LoggerService.error('Error getting owned theme backgrounds: $e');
@@ -1237,28 +1436,37 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
   /// 獲取所有主題背景
   Future<List<Map<String, dynamic>>> _getAllThemeBackgrounds() async {
     try {
-      final allThemes = ThemeBackgroundService.getAllThemeBackgrounds();
-      final ownedThemes = await ThemeBackgroundService.getUserOwnedThemes();
+      // 簡化實現：直接從 Firebase 獲取主題桌布數據
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('主題桌鋪')
+          .get();
       
       final List<Map<String, dynamic>> themeItems = [];
       
-      for (final theme in allThemes.values) {
-        final isOwned = ownedThemes.contains(theme.id);
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        
+        // 嘗試從多個可能的欄位獲取圖片 URL
+        final imageUrl = data['圖片'] ?? data['imageUrl'] ?? data['image'] ?? data['url'] ?? data['img'] ?? '';
+        final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
+        final isFirebaseOwned = firebaseStatus == '已擁有';
         
         themeItems.add({
-          'id': theme.id,
-          'name': theme.name,
-          '圖片': '',
-          'imageUrl': '',
+          'id': doc.id,
+          'name': data['name'] ?? '未命名主題',
+          '圖片': imageUrl,
+          'imageUrl': imageUrl,
           'category': '主題桌布',
-          'status': isOwned ? '已擁有' : '未擁有',
-          'description': theme.description,
-          'price': theme.price,
-          'isFree': theme.isFree,
+          'status': isFirebaseOwned ? '已擁有' : '未擁有',
+          'description': data['description'] ?? '',
+          'price': data['price'] ?? data['價格'] ?? 0,
+          'isFree': (data['price'] ?? data['價格'] ?? 0) == 0,
         });
+        
+        LoggerService.debug('所有主題桌布 - ID: ${doc.id}, 名稱: ${data['name']}, 狀態: $firebaseStatus, 圖片: $imageUrl');
       }
       
-      // 排序：已擁有的主題在前，未擁有的主題在後
+      // 排序：已擁有的商品在前，未擁有的商品在後
       themeItems.sort((a, b) {
         final aOwned = a['status'] == '已擁有';
         final bOwned = b['status'] == '已擁有';
@@ -1290,6 +1498,24 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
         return Icons.table_bar;
       default:
         return Icons.category;
+    }
+  }
+
+  /// 獲取類別的描述文字
+  String _getCategoryDescription(String category) {
+    switch (category) {
+      case '造型':
+        return '已設為您的捷米造型';
+      case '頭像':
+        return '已設為您的頭像';
+      case '特效':
+        return '已設為您的特效';
+      case '主題桌布':
+        return '已設為您的主題背景';
+      case '飼料':
+        return '已設為您的飼料';
+      default:
+        return '已設為您的$category';
     }
   }
 
@@ -1333,9 +1559,53 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
           // 顯示視覺反饋
           _showSelectionFeedback(context, itemName, itemImageUrl, category);
         }
+      } else if (category == '特效') {
+        // 保存選擇的特效
+        await prefs.setString('selected_effect_$username', itemName);
+        await prefs.setString('selected_effect_image_$username', itemImageUrl);
+        
+        // 更新選中狀態
+        setState(() {
+          _selectedEffectItem = itemName;
+        });
+        
+        if (mounted) {
+          // 顯示視覺反饋
+          _showSelectionFeedback(context, itemName, itemImageUrl, category);
+        }
       } else if (category == '主題桌布') {
         // 保存選擇的主題背景
-        await ThemeBackgroundService.setThemeBackground(item['id']);
+        await ThemeBackgroundService.setSelectedTheme(
+          item['id'],
+          item['圖片'] ?? item['imageUrl'] ?? '',
+          item['name'] ?? '未命名主題',
+        );
+        
+        // 同時保存到本地存儲以顯示選擇狀態
+        await prefs.setString('selected_theme_$username', itemName);
+        await prefs.setString('selected_theme_image_$username', itemImageUrl);
+        
+        // 更新選中狀態
+        setState(() {
+          _selectedThemeItem = itemName;
+        });
+        
+        // 立即通知所有頁面更新背景
+        ThemeBackgroundNotifier().notifyBackgroundChanged();
+        
+        if (mounted) {
+          // 顯示視覺反饋
+          _showSelectionFeedback(context, itemName, itemImageUrl, category);
+        }
+      } else if (category == '飼料') {
+        // 保存選擇的飼料
+        await prefs.setString('selected_food_$username', itemName);
+        await prefs.setString('selected_food_image_$username', itemImageUrl);
+        
+        // 更新選中狀態
+        setState(() {
+          _selectedFoodItem = itemName;
+        });
         
         if (mounted) {
           // 顯示視覺反饋
@@ -1416,7 +1686,7 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
                           return Container(
                             color: Colors.grey.shade200,
                             child: Icon(
-                              category == '造型' ? Icons.face : Icons.account_circle,
+                              _getCategoryIcon(category),
                               color: Colors.grey.shade400,
                               size: 32,
                             ),
@@ -1440,7 +1710,7 @@ class _PetPageState extends State<PetPage> with SingleTickerProviderStateMixin {
                 
                 // 類別說明
                 Text(
-                  '已設為您的${category == '造型' ? '捷米造型' : '頭像'}',
+                  _getCategoryDescription(category),
                   style: TextStyle(
                     fontSize: 14,
                     color: Colors.grey.shade600,

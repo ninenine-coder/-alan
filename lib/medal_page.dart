@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 import 'logger_service.dart';
+import 'theme_background_widget.dart';
 
 class MedalPage extends StatefulWidget {
   const MedalPage({super.key});
@@ -92,14 +93,18 @@ class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildStatusBar(),
-            _buildHeaderSection(),
-            Expanded(child: _buildMedalList()),
-          ],
+      backgroundColor: Colors.transparent,
+      body: ThemeBackgroundListener(
+        overlayColor: Colors.white,
+        overlayOpacity: 0.3,
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildStatusBar(),
+              _buildHeaderSection(),
+              Expanded(child: _buildMedalList()),
+            ],
+          ),
         ),
       ),
     );

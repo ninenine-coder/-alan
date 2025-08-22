@@ -22,6 +22,8 @@ import 'metro_quiz_page.dart';
 import 'feature_unlock_service.dart';
 import 'welcome_coin_service.dart';
 
+import 'theme_background_widget.dart';
+
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
 
@@ -50,6 +52,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   Map<String, bool> _featureUnlockStatus = {};
   
 
+  
+
 
   // 動畫控制器
   late AnimationController _typingAnimationController;
@@ -67,6 +71,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     super.initState();
     _initializeAnimations();
     _loadUserData();
+
     _preloadMetroQuizHtml(); // 預載入捷運知識王 HTML
     
     // 註冊升級回調
@@ -105,12 +110,25 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getString('selected_avatar_image_$username');
+      final avatarImageUrl = prefs.getString('selected_avatar_image_$username');
+      
+      LoggerService.debug('獲取頭像圖片: $avatarImageUrl, 用戶: $username');
+      return avatarImageUrl;
     } catch (e) {
       LoggerService.error('Error getting selected avatar image: $e');
       return null;
     }
   }
+
+  /// 刷新頭像顯示
+  void _refreshAvatarDisplay() {
+    setState(() {
+      // 觸發重新構建以更新頭像顯示
+    });
+    LoggerService.info('頭像顯示已刷新');
+  }
+
+
 
   void _initializeAnimations() {
     _typingAnimationController = AnimationController(
@@ -709,17 +727,43 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       builder: (context, snapshot) {
                         final imageUrl = snapshot.data;
                         if (imageUrl != null && imageUrl.isNotEmpty) {
-                          return CircleAvatar(
-                            radius: 20,
-                            backgroundImage: NetworkImage(imageUrl),
-                            onBackgroundImageError: (exception, stackTrace) {
-                              // 如果圖片載入失敗，使用預設圖標
-                            },
-                            child: imageUrl.isEmpty ? Icon(
-                              Icons.person,
-                              color: Colors.white,
-                              size: 24,
-                            ) : null,
+                          return ClipOval(
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              child: Image.network(
+                                imageUrl,
+                                width: 40,
+                                height: 40,
+                                fit: BoxFit.cover,
+                                alignment: Alignment.topCenter, // 顯示圖片的上部分（頭部）
+                                errorBuilder: (context, error, stackTrace) {
+                                  return CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: Colors.grey.shade400,
+                                    child: Icon(
+                                      Icons.person,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  );
+                                },
+                                loadingBuilder: (context, child, loadingProgress) {
+                                  if (loadingProgress == null) return child;
+                                  return CircleAvatar(
+                                    radius: 20,
+                                    backgroundColor: Colors.grey.shade300,
+                                    child: CircularProgressIndicator(
+                                      value: loadingProgress.expectedTotalBytes != null
+                                          ? loadingProgress.cumulativeBytesLoaded /
+                                              loadingProgress.expectedTotalBytes!
+                                          : null,
+                                      strokeWidth: 2,
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
                           );
                         } else {
                           return CircleAvatar(
@@ -1211,6 +1255,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         });
       }
       _coinDisplayKey.currentState?.refreshCoins();
+      // 刷新頭像顯示
+      _refreshAvatarDisplay();
     });
   }
 
@@ -1237,6 +1283,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         }
         LoggerService.info('從商城頁面返回');
         _coinDisplayKey.currentState?.refreshCoins();
+        // 通知背景更新
+        ThemeBackgroundNotifier().notifyBackgroundChanged();
+        // 刷新頭像顯示
+        _refreshAvatarDisplay();
       }).catchError((error) {
         LoggerService.error('導航過程中發生錯誤: $error');
         _showErrorSnackBar('導航過程中發生錯誤: $error');
@@ -1513,50 +1563,52 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         ],
       ),
       extendBodyBehindAppBar: true,
-      body: Stack(
-        children: [
-          _buildAnimatedBackground(),
-          
-          Column(
-            children: [
-              const SizedBox(height: 100),
-              
-              Expanded(
-                child: AnimatedList(
-                  key: _listKey,
-                  controller: _scrollController,
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
-                  initialItemCount: _messages.length,
-                  itemBuilder: (context, index, animation) {
-                    return SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.5),
-                        end: Offset.zero,
-                      ).animate(CurvedAnimation(
-                        parent: animation,
-                        curve: Curves.easeOut,
-                      )),
-                      child: FadeTransition(
-                        opacity: animation,
-                        child: _buildMessage(_messages[index]),
-                      ),
-                    );
-                  },
+      body: ThemeBackgroundListener(
+        overlayColor: Colors.white,
+        overlayOpacity: 0.7,
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                const SizedBox(height: 100),
+                
+                Expanded(
+                  child: AnimatedList(
+                    key: _listKey,
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+                    initialItemCount: _messages.length,
+                    itemBuilder: (context, index, animation) {
+                      return SlideTransition(
+                        position: Tween<Offset>(
+                          begin: const Offset(0, 0.5),
+                          end: Offset.zero,
+                        ).animate(CurvedAnimation(
+                          parent: animation,
+                          curve: Curves.easeOut,
+                        )),
+                        child: FadeTransition(
+                          opacity: animation,
+                          child: _buildMessage(_messages[index]),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              ),
-              
-              if (_isTyping) _buildTypingIndicator(),
-              
-              _buildInputArea(),
-            ],
-          ),
-          
-          if (_showWelcomeAnimation)
-            WelcomeCoinAnimation(
-              onAnimationComplete: _onWelcomeAnimationComplete,
-              coinAmount: WelcomeCoinService.getWelcomeCoinAmount(),
+                
+                if (_isTyping) _buildTypingIndicator(),
+                
+                _buildInputArea(),
+              ],
             ),
-        ],
+            
+            if (_showWelcomeAnimation)
+              WelcomeCoinAnimation(
+                onAnimationComplete: _onWelcomeAnimationComplete,
+                coinAmount: WelcomeCoinService.getWelcomeCoinAmount(),
+              ),
+          ],
+        ),
       ),
     );
   }

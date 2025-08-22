@@ -4,8 +4,8 @@ import 'coin_display.dart';
 import 'user_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'logger_service.dart';
-import 'add_item.dart';
 import 'theme_background_service.dart';
+import 'theme_background_widget.dart';
 
 class StorePage extends StatefulWidget {
   final String? initialCategory;
@@ -65,9 +65,37 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
 
   Future<void> _testFirebaseConnection() async {
     try {
-      await testReadFirebaseData();
+      await _testThemeBackgroundData();
     } catch (e) {
       LoggerService.error('Firebase 連接測試失敗: $e');
+    }
+  }
+
+  /// 測試主題桌鋪數據
+  Future<void> _testThemeBackgroundData() async {
+    try {
+      LoggerService.info('開始測試主題桌鋪數據...');
+      
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('主題桌鋪')
+          .get();
+      
+      LoggerService.info('主題桌鋪集合文檔數量: ${querySnapshot.docs.length}');
+      
+      for (int i = 0; i < querySnapshot.docs.length; i++) {
+        final doc = querySnapshot.docs[i];
+        final data = doc.data();
+        LoggerService.info('主題桌鋪文檔 $i (ID: ${doc.id}):');
+        LoggerService.info('  完整數據: $data');
+        LoggerService.info('  名稱: ${data['name']}');
+        LoggerService.info('  圖片欄位: ${data['圖片']}');
+        LoggerService.info('  imageUrl欄位: ${data['imageUrl']}');
+        LoggerService.info('  價格: ${data['price']}');
+        LoggerService.info('  狀態: ${data['狀態']}');
+        LoggerService.info('  ---');
+      }
+    } catch (e) {
+      LoggerService.error('測試主題桌鋪數據失敗: $e');
     }
   }
 
@@ -152,6 +180,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       }
       
       if (success) {
+        // 如果是主題桌鋪，詢問是否要應用主題
+        if (categories[_tabController.index] == '主題桌鋪') {
+          await _showThemeApplicationDialog(context, product);
+        }
+        
         scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Row(
@@ -195,115 +228,76 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     try {
       final data = item.data() as Map<String, dynamic>;
       final name = data['name'] ?? '未命名商品';
-      final price = data['價格'] ?? data['price'] ?? 0;
+      final price = data['price'] ?? data['價格'] ?? 0;
       final popularity = data['常見度'] ?? data['popularity'] ?? '常見';
-      final imageUrl = data['圖片'] ?? data['imageUrl'] ?? '';
+      final imageUrl = data['圖片'] ?? data['imageUrl'] ?? data['image'] ?? data['url'] ?? data['img'] ?? '';
       final description = data['description'] ?? '';
       final status = data['狀態'] ?? data['status'] ?? '購買';
       
-            // 檢查是否為經典款商品（任何類別且價格為0）
+      // 調試信息：打印圖片URL
+      LoggerService.debug('商品: $name, 圖片URL: $imageUrl, 類別: $category');
+      LoggerService.debug('完整商品數據: $data');
+      LoggerService.debug('圖片欄位檢查:');
+      LoggerService.debug('  data["圖片"]: ${data['圖片']}');
+      LoggerService.debug('  data["imageUrl"]: ${data['imageUrl']}');
+      LoggerService.debug('  data["image"]: ${data['image']}');
+      LoggerService.debug('  data["url"]: ${data['url']}');
+      LoggerService.debug('  data["img"]: ${data['img']}');
+      
+      // 檢查是否為經典款商品（任何類別且價格為0）
       final isClassicItem = price == 0;
       
       return StreamBuilder<DocumentSnapshot?>(
-      stream: _getUserPurchasedItemsStream(),
-      builder: (context, snapshot) {
-        bool isPurchased = false;
-        bool isItemUnavailable = false; // 新增：檢查商品是否不可用
-        
-        if (snapshot.hasData && snapshot.data != null) {
-          final userData = snapshot.data!.data() as Map<String, dynamic>?;
-          if (userData != null) {
-            final purchasedItemIds = List<String>.from(userData['purchasedItems'] ?? []);
-            isPurchased = purchasedItemIds.contains(item.id);
+        stream: _getUserPurchasedItemsStream(),
+        builder: (context, snapshot) {
+          bool isPurchased = false;
+          bool isItemUnavailable = false; // 新增：檢查商品是否不可用
+          
+          if (snapshot.hasData && snapshot.data != null) {
+            final userData = snapshot.data!.data() as Map<String, dynamic>?;
+            if (userData != null) {
+              final purchasedItemIds = List<String>.from(userData['purchasedItems'] ?? []);
+              isPurchased = purchasedItemIds.contains(item.id);
+            }
           }
-        }
-        
-        // 檢查 Firebase 中商品的狀態欄位
-        isItemUnavailable = status == '已擁有';
-        
-        return Card(
-          margin: const EdgeInsets.all(8),
-          elevation: 3,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_cardBorderRadius)),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // 圖片區域
-              Container(
-                height: _cardImageHeight,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(_cardBorderRadius)),
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade100, Colors.blue.shade200],
+          
+          // 檢查 Firebase 中商品的狀態欄位
+          isItemUnavailable = status == '已擁有';
+          
+          return Card(
+            margin: const EdgeInsets.all(8),
+            elevation: 3,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_cardBorderRadius)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 圖片區域
+                Container(
+                  height: _cardImageHeight,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(_cardBorderRadius)),
+                    gradient: LinearGradient(
+                      colors: [Colors.blue.shade100, Colors.blue.shade200],
+                    ),
                   ),
-                ),
-                child: Stack(
-                  children: [
-                    Center(
-                      child: imageUrl != null && imageUrl.isNotEmpty && imageUrl != '""'
-                          ? GestureDetector(
-                              onTap: () => _showImagePreview(context, imageUrl, name, price, description, isClassicItem, category),
-                              child: ClipRRect(
-                                borderRadius: const BorderRadius.vertical(top: Radius.circular(_cardBorderRadius)),
-                                child: Image.network(
-                                  imageUrl,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
-                                  loadingBuilder: (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Center(
-                                      child: CircularProgressIndicator(
-                                        value: loadingProgress.expectedTotalBytes != null
-                                            ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                            : null,
-                                        strokeWidth: 2,
-                                      ),
-                                    );
-                                  },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return _buildNoImagePlaceholder();
-                                  },
-                                ),
-                              ),
-                            )
-                          : _buildNoImagePlaceholder(),
-                    ),
-                    // 稀有度標籤
-                    Positioned(
-                      top: 8,
-                      right: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: _getRarityColor(popularity),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          popularity,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                  child: Stack(
+                    children: [
+                      Center(
+                        child: _buildImageWidget(imageUrl, name, price, description, isClassicItem, category),
                       ),
-                    ),
-
-                    // 已購買標籤
-                    if (isPurchased || isItemUnavailable)
+                      // 稀有度標籤
                       Positioned(
-                        top: isClassicItem ? 36 : 8, // 如果是經典款，位置下移
-                        left: 8,
+                        top: 8,
+                        right: 8,
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.green.shade600,
+                            color: _getRarityColor(popularity),
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
-                            '已擁有',
+                            popularity,
                             style: const TextStyle(
                               color: Colors.white,
                               fontSize: 10,
@@ -312,130 +306,219 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           ),
                         ),
                       ),
-                  ],
-                ),
-              ),
-              // 內容區域
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.all(6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 1),
-                      Text(
-                        isClassicItem ? '價格: 免費' : '價格: $price 元',
-                        style: TextStyle(
-                          color: isClassicItem ? Colors.green.shade700 : Colors.amber.shade700,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 11,
-                        ),
-                      ),
-                      Text(
-                        '常見度: $popularity',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                          fontSize: 9,
-                        ),
-                      ),
-                      const Spacer(),
-                      // 按鈕區域
-                      Container(
-                        width: double.infinity,
-                        height: _buttonHeight,
-                        margin: const EdgeInsets.only(top: 2, bottom: 0),
-                        child: (isPurchased || isItemUnavailable)
-                            ? Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.grey.shade200,
-                                  borderRadius: BorderRadius.circular(_buttonBorderRadius),
-                                  border: Border.all(color: Colors.grey.shade300),
-                                ),
-                                child: Center(
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.check_circle,
-                                        color: Colors.grey.shade600,
-                                        size: 12,
-                                      ),
-                                      const SizedBox(width: 2),
-                                      Text(
-                                        '已擁有',
-                                        style: TextStyle(
-                                          color: Colors.grey.shade600,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              )
-                            : Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: (isPurchased || isItemUnavailable) ? null : () => _showConfirmDialog(context, {...data, 'id': item.id}),
-                                  borderRadius: BorderRadius.circular(_buttonBorderRadius),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: status == '登入領取' ? Colors.orange.shade600 : Colors.blue.shade600,
-                                      borderRadius: BorderRadius.circular(_buttonBorderRadius),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black12,
-                                          blurRadius: 2,
-                                          offset: const Offset(0, 1),
-                                        ),
-                                      ],
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        status,
-                                        style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 11,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
+
+                      // 已購買標籤
+                      if (isPurchased || isItemUnavailable)
+                        Positioned(
+                          top: isClassicItem ? 36 : 8, // 如果是經典款，位置下移
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.shade600,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              '已擁有',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
                               ),
-                      ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+                // 內容區域
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 1),
+                        Text(
+                          isClassicItem ? '價格: 免費' : '價格: $price 元',
+                          style: TextStyle(
+                            color: isClassicItem ? Colors.green.shade700 : Colors.amber.shade700,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 11,
+                          ),
+                        ),
+                        Text(
+                          '常見度: $popularity',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 9,
+                          ),
+                        ),
+                        const Spacer(),
+                        // 按鈕區域
+                        Container(
+                          width: double.infinity,
+                          height: _buttonHeight,
+                          child: ElevatedButton(
+                            onPressed: (isPurchased || isItemUnavailable) ? null : () => _showConfirmDialog(context, {...data, 'id': item.id}),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: isClassicItem ? Colors.green.shade600 : Colors.blue.shade600,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(_buttonBorderRadius),
+                              ),
+                              padding: EdgeInsets.zero,
+                            ),
+                            child: Text(
+                              (isPurchased || isItemUnavailable) ? '已擁有' : (isClassicItem ? '領取' : '購買'),
+                              style: const TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
     } catch (e) {
       LoggerService.error('構建商品卡片時發生錯誤: $e');
-      return const Card(
-        child: Center(
-          child: Text('載入失敗'),
+      return Card(
+        margin: const EdgeInsets.all(8),
+        child: Container(
+          height: 200,
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.error_outline, color: Colors.red.shade400),
+                const SizedBox(height: 8),
+                Text(
+                  '載入失敗',
+                  style: TextStyle(color: Colors.red.shade600),
+                ),
+              ],
+            ),
+          ),
         ),
       );
     }
   }
 
   Widget buildCategoryTab(String category) {
-    // 如果是主題桌鋪分類，使用主題背景服務
+    // 如果是主題桌鋪分類，直接從 Firebase 讀取
     if (category == '主題桌鋪') {
-      return _buildThemeBackgroundTab();
+      return StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance
+            .collection('主題桌鋪')
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.hasError) {
+            LoggerService.error('載入主題桌鋪資料時發生錯誤: ${snapshot.error}');
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                  const SizedBox(height: 16),
+                  Text(
+                    '載入資料錯誤: ${snapshot.error}',
+                    style: const TextStyle(fontSize: 16, color: Colors.red),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () {
+                      setState(() {}); // 重新構建
+                    },
+                    child: const Text('重試'),
+                  ),
+                ],
+              ),
+            );
+          }
+          
+          if (!snapshot.hasData) {
+            return const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('載入中...'),
+                ],
+              ),
+            );
+          }
+          
+          final items = snapshot.data!.docs;
+
+          if (items.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.table_bar_outlined, size: 64, color: Colors.grey.shade400),
+                  const SizedBox(height: 16),
+                  Text(
+                    '此類別尚無主題桌鋪',
+                    style: TextStyle(
+                      fontSize: 18,
+                      color: Colors.grey.shade600,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '類別: $category',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return GridView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: _gridChildAspectRatio,
+              crossAxisSpacing: 16,
+              mainAxisSpacing: 16,
+            ),
+            itemBuilder: (context, index) {
+              return TweenAnimationBuilder<double>(
+                duration: Duration(milliseconds: 300 + (index * 50)),
+                tween: Tween(begin: 0.0, end: 1.0),
+                builder: (context, value, child) {
+                  return Transform.scale(
+                    scale: value,
+                    child: buildItem(items[index], category: category),
+                  );
+                },
+              );
+            },
+          );
+        },
+      );
     }
     
     return StreamBuilder<QuerySnapshot>(
@@ -536,377 +619,6 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     );
   }
 
-  /// 構建主題背景標籤頁
-  Widget _buildThemeBackgroundTab() {
-    return FutureBuilder<List<String>>(
-      future: ThemeBackgroundService.getUserOwnedThemes(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('載入中...'),
-              ],
-            ),
-          );
-        }
-
-        if (snapshot.hasError) {
-          return Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
-                const SizedBox(height: 16),
-                Text(
-                  '載入主題背景失敗',
-                  style: const TextStyle(fontSize: 16, color: Colors.red),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final ownedThemes = snapshot.data ?? ['主題1'];
-        final allThemes = ThemeBackgroundService.getAllThemeBackgrounds();
-
-        return GridView.builder(
-          padding: const EdgeInsets.all(16),
-          itemCount: allThemes.length,
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 2,
-            childAspectRatio: _gridChildAspectRatio,
-            crossAxisSpacing: 16,
-            mainAxisSpacing: 16,
-          ),
-          itemBuilder: (context, index) {
-            final themeId = allThemes.keys.elementAt(index);
-            final theme = allThemes[themeId]!;
-            final isOwned = ownedThemes.contains(themeId);
-            
-            return TweenAnimationBuilder<double>(
-              duration: Duration(milliseconds: 300 + (index * 50)),
-              tween: Tween(begin: 0.0, end: 1.0),
-              builder: (context, value, child) {
-                return Transform.scale(
-                  scale: value,
-                  child: _buildThemeBackgroundCard(theme, isOwned),
-                );
-              },
-            );
-          },
-        );
-      },
-    );
-  }
-
-  /// 構建主題背景卡片
-  Widget _buildThemeBackgroundCard(ThemeBackground theme, bool isOwned) {
-    return Card(
-      margin: const EdgeInsets.all(8),
-      elevation: 3,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_cardBorderRadius)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 圖片區域
-          Container(
-            height: _cardImageHeight,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(_cardBorderRadius)),
-              gradient: LinearGradient(
-                colors: ThemeBackgroundService.getThemeGradientColors(theme.id),
-              ),
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: ThemeBackgroundService.getThemeGradientColors(theme.id),
-                      ),
-                    ),
-                    child: Icon(
-                      Icons.image,
-                      size: 50,
-                      color: Colors.white.withOpacity(0.7),
-                    ),
-                  ),
-                ),
-                // 已擁有標籤
-                if (isOwned)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade600,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Text(
-                        '已擁有',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          // 內容區域
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    theme.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    theme.priceText,
-                    style: TextStyle(
-                      color: theme.isFree ? Colors.green.shade700 : Colors.amber.shade700,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 11,
-                    ),
-                  ),
-                  Text(
-                    theme.category,
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 9,
-                    ),
-                  ),
-                  const Spacer(),
-                  // 按鈕區域
-                  Container(
-                    width: double.infinity,
-                    height: _buttonHeight,
-                    margin: const EdgeInsets.only(top: 2, bottom: 0),
-                    child: isOwned
-                        ? Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade200,
-                              borderRadius: BorderRadius.circular(_buttonBorderRadius),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: Center(
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.check_circle,
-                                    color: Colors.grey.shade600,
-                                    size: 12,
-                                  ),
-                                  const SizedBox(width: 2),
-                                  Text(
-                                    '已擁有',
-                                    style: TextStyle(
-                                      color: Colors.grey.shade600,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          )
-                        : Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => _showThemeBackgroundConfirmDialog(context, theme),
-                              borderRadius: BorderRadius.circular(_buttonBorderRadius),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  color: Colors.blue.shade600,
-                                  borderRadius: BorderRadius.circular(_buttonBorderRadius),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black12,
-                                      blurRadius: 2,
-                                      offset: const Offset(0, 1),
-                                    ),
-                                  ],
-                                ),
-                                child: Center(
-                                  child: Text(
-                                    theme.isFree ? '領取' : '購買',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 11,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 顯示主題背景確認對話框
-  void _showThemeBackgroundConfirmDialog(BuildContext context, ThemeBackground theme) {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Row(
-            children: [
-              Icon(
-                theme.isFree ? Icons.card_giftcard : Icons.shopping_cart,
-                color: theme.isFree ? Colors.green.shade600 : Colors.blue.shade600,
-              ),
-              const SizedBox(width: 8),
-              Text(theme.isFree ? '領取主題背景' : '購買主題背景'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('確定要${theme.isFree ? '領取' : '購買'}「${theme.name}」嗎？'),
-              const SizedBox(height: 8),
-              Text(
-                theme.description,
-                style: TextStyle(
-                  color: Colors.grey.shade600,
-                  fontSize: 12,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '價格: ${theme.priceText}',
-                style: TextStyle(
-                  color: theme.isFree ? Colors.green.shade700 : Colors.amber.shade700,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('取消'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                Navigator.of(context).pop();
-                await _purchaseThemeBackground(theme);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: theme.isFree ? Colors.green.shade600 : Colors.blue.shade600,
-              ),
-              child: Text(theme.isFree ? '領取' : '購買'),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  /// 購買主題背景
-  Future<void> _purchaseThemeBackground(ThemeBackground theme) async {
-    try {
-      final success = await ThemeBackgroundService.purchaseThemeBackground(theme.id);
-      if (success) {
-        // 重新載入用戶數據
-        await _loadPurchasedItems();
-        
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  Icon(
-                    theme.isFree ? Icons.card_giftcard : Icons.shopping_cart,
-                    color: Colors.white,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('${theme.isFree ? '領取' : '購買'}成功！${theme.name} 已加入收藏'),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green.shade600,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-        
-        // 刷新金幣顯示
-        _coinDisplayKey.currentState?.refreshCoins();
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.error, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('${theme.isFree ? '領取' : '購買'}失敗，請稍後再試'),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.red.shade600,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      LoggerService.error('購買主題背景時發生錯誤: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                const Icon(Icons.error, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text('操作失敗: $e'),
-                ),
-              ],
-            ),
-            backgroundColor: Colors.red.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      }
-    }
-  }
-
   @override
   void dispose() {
     _tabController.dispose();
@@ -924,6 +636,134 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       LoggerService.info('商品狀態已更新: $itemId -> $newStatus');
     } catch (e) {
       LoggerService.error('更新商品狀態失敗: $e');
+    }
+  }
+
+  /// 顯示主題應用對話框
+  Future<void> _showThemeApplicationDialog(BuildContext context, Map<String, dynamic> product) async {
+    final bool? applyTheme = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            Icon(Icons.palette, color: Colors.blue.shade600),
+            const SizedBox(width: 8),
+            const Text('應用主題'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('是否要將「${product['name']}」設為聊天頁面的背景主題？'),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.blue.shade200),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue.shade600, size: 20),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      '這個主題將會顯示在聊天頁面的背景',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('稍後設置'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('立即應用'),
+          ),
+        ],
+      ),
+    );
+
+    if (applyTheme == true && mounted) {
+      await _applyTheme(product);
+    }
+  }
+
+  /// 應用主題
+  Future<void> _applyTheme(Map<String, dynamic> product) async {
+    try {
+      final themeId = product['id'] ?? '';
+      final imageUrl = product['圖片'] ?? product['imageUrl'] ?? '';
+      final themeName = product['name'] ?? '未命名主題';
+
+      final success = await ThemeBackgroundService.setSelectedTheme(
+        themeId,
+        imageUrl,
+        themeName,
+      );
+
+      if (success && mounted) {
+        // 通知背景更新
+        ThemeBackgroundNotifier().notifyBackgroundChanged();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('主題「$themeName」已成功應用到所有頁面！'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                const Text('應用主題失敗，請稍後再試'),
+              ],
+            ),
+            backgroundColor: Colors.red.shade600,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService.error('應用主題失敗: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('應用主題時發生錯誤: $e'),
+            backgroundColor: Colors.red.shade600,
+          ),
+        );
+      }
     }
   }
 
@@ -993,6 +833,14 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     try {
       final success = await CoinService.deductCoins(price);
       if (success) {
+        // 獲取當前類別
+        final currentCategory = categories[_tabController.index];
+        final itemId = product['id'] ?? '';
+        
+        // 直接更新商城中的商品狀態為"已擁有"
+        await _updateItemStatus(itemId, '已擁有');
+        
+        // 更新本地購買狀態（為了向後兼容）
         final uid = _currentUser!['uid'] ?? 'default';
         final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
         
@@ -1005,9 +853,6 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             
             if (!purchasedItems.contains(product['id'])) {
               purchasedItems.add(product['id']);
-              
-              // 獲取當前類別
-              final currentCategory = categories[_tabController.index];
               
               // 保存商品詳細信息到 purchasedItemsWithCategory
               purchasedItemsWithCategory[product['id']] = {
@@ -1025,16 +870,13 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           }
         });
         
-        // 更新 Firebase 中商品的狀態為"已擁有"
-        await _updateItemStatus(product['id'], '已擁有');
-        
         setState(() {
           purchasedItems[product['id']] = true;
         });
         
         _coinDisplayKey.currentState?.refreshCoins();
         
-        // 購買成功，UI 更新將由 StreamBuilder 自動處理
+        LoggerService.info('商品購買成功: ${product['name']} (類別: $currentCategory)');
         return true;
       }
     } catch (e) {
@@ -1206,6 +1048,71 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     );
   }
 
+  Widget _buildImageWidget(String imageUrl, String name, int price, String description, bool isClassicItem, String? category) {
+    // 調試信息：詳細記錄圖片URL檢查過程
+    LoggerService.debug('_buildImageWidget - 商品: $name, 原始圖片URL: "$imageUrl"');
+    LoggerService.debug('_buildImageWidget - URL長度: ${imageUrl.length}, 是否為空: ${imageUrl.isEmpty}');
+    LoggerService.debug('_buildImageWidget - URL是否為""字符串: ${imageUrl == '""'}');
+    LoggerService.debug('_buildImageWidget - URL是否為null字符串: ${imageUrl == 'null'}');
+    LoggerService.debug('_buildImageWidget - URL是否以http開頭: ${imageUrl.startsWith('http://')}');
+    LoggerService.debug('_buildImageWidget - URL是否以https開頭: ${imageUrl.startsWith('https://')}');
+    
+    // 檢查圖片URL是否有效
+    bool isValidUrl = imageUrl.isNotEmpty && 
+                     imageUrl != '""' && 
+                     imageUrl != 'null' && 
+                     (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'));
+    
+    LoggerService.debug('_buildImageWidget - URL是否有效: $isValidUrl');
+    
+    if (isValidUrl) {
+      return GestureDetector(
+        onTap: () => _showImagePreview(context, imageUrl, name, price, description, isClassicItem, category),
+        child: ClipRRect(
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(_cardBorderRadius)),
+          child: Image.network(
+            imageUrl,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+            alignment: category == '頭像' ? Alignment.topCenter : Alignment.center, // 頭像類別顯示上部分（臉部）
+            loadingBuilder: (context, child, loadingProgress) {
+              if (loadingProgress == null) return child;
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      value: loadingProgress.expectedTotalBytes != null
+                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                          : null,
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '載入中...',
+                      style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+            errorBuilder: (context, error, stackTrace) {
+              LoggerService.warning('圖片載入失敗: $imageUrl, 錯誤: $error');
+              return _buildNoImagePlaceholder();
+            },
+          ),
+        ),
+      );
+    } else {
+      return _buildNoImagePlaceholder();
+    }
+  }
+
   Widget _buildNoImagePlaceholder() {
     return Center(
       child: Column(
@@ -1266,109 +1173,113 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.blue.shade50,
-              Colors.white,
-              Colors.blue.shade50,
-            ],
-          ),
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: EdgeInsets.only(
-                top: MediaQuery.of(context).padding.top + 10,
-                bottom: 10,
-                left: 16,
-                right: 16,
-              ),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.blue.shade600, Colors.blue.shade800],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, 2),
+      backgroundColor: Colors.transparent,
+      body: ThemeBackgroundListener(
+        overlayColor: Colors.white,
+        overlayOpacity: 0.3,
+        child: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.blue.shade600, Colors.blue.shade800],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
-                ],
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.arrow_back, color: Colors.white),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                      const Expanded(
-                        child: Text(
-                          '商城',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ),
-                      CoinDisplay(key: _coinDisplayKey),
-                      const SizedBox(width: 16),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(25),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.1),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
                     ),
-                    child: TabBar(
-                      controller: _tabController,
-                      isScrollable: true,
-                      indicator: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(25),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        GestureDetector(
+                          onTap: () => Navigator.pop(context),
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.9),
+                              borderRadius: BorderRadius.circular(12),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Icon(Icons.arrow_back_ios, size: 18, color: Colors.blue[600]),
                           ),
-                        ],
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text(
+                            '商城',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ),
+                        CoinDisplay(key: _coinDisplayKey),
+                        const SizedBox(width: 12),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(25),
                       ),
-                      labelColor: Colors.blue.shade800,
-                      unselectedLabelColor: Colors.white,
-                      labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                      tabs: categories.map((c) => Tab(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(categoryIcons[c], size: 16),
-                            const SizedBox(width: 4),
-                            Text(c),
+                      child: TabBar(
+                        controller: _tabController,
+                        isScrollable: true,
+                        indicator: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(25),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
                           ],
                         ),
-                      )).toList(),
+                        labelColor: Colors.blue.shade800,
+                        unselectedLabelColor: Colors.white,
+                        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                        tabs: categories.map((c) => Tab(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(categoryIcons[c], size: 16),
+                              const SizedBox(width: 4),
+                              Text(c),
+                            ],
+                          ),
+                        )).toList(),
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: TabBarView(
-                controller: _tabController,
-                children: categories.map((category) => buildCategoryTab(category)).toList(),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: categories.map((category) => buildCategoryTab(category)).toList(),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

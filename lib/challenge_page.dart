@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'coin_display.dart';
 import 'challenge_service.dart';
+import 'theme_background_widget.dart';
 
 class ChallengePage extends StatefulWidget {
   const ChallengePage({super.key});
@@ -426,60 +427,154 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('挑戰任務'),
-        centerTitle: true,
-        actions: [
-          CoinDisplay(key: _coinDisplayKey),
-          const SizedBox(width: 16),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: '每日任務'),
-            Tab(text: '每周任務'),
-          ],
+      backgroundColor: Colors.transparent,
+      body: ThemeBackgroundListener(
+        overlayColor: Colors.white,
+        overlayOpacity: 0.3,
+        child: SafeArea(
+          child: Column(
+            children: [
+              _buildHeaderSection(),
+              Expanded(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    // 每日任務頁面
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : RefreshIndicator(
+                            onRefresh: _loadTasks,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.only(top: 12),
+                              itemCount: ChallengeService.dailyTaskConfigs.length,
+                              itemBuilder: (context, index) {
+                                final taskId = ChallengeService.dailyTaskConfigs.keys.elementAt(index);
+                                final status = _dailyTaskStatus[taskId];
+                                if (status == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                return _buildDailyTaskCard(taskId, status);
+                              },
+                            ),
+                          ),
+                    // 每周任務頁面
+                    _isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : RefreshIndicator(
+                            onRefresh: _loadTasks,
+                            child: ListView.builder(
+                              padding: const EdgeInsets.only(top: 12),
+                              itemCount: ChallengeService.weeklyTaskConfigs.length,
+                              itemBuilder: (context, index) {
+                                final taskId = ChallengeService.weeklyTaskConfigs.keys.elementAt(index);
+                                final status = _weeklyTaskStatus[taskId];
+                                if (status == null) {
+                                  return const SizedBox.shrink();
+                                }
+                                return _buildWeeklyTaskCard(taskId, status);
+                              },
+                            ),
+                          ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      body: TabBarView(
-        controller: _tabController,
+    );
+  }
+
+  Widget _buildHeaderSection() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Colors.blue.shade600, Colors.blue.shade800],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 10,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
         children: [
-          // 每日任務頁面
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _loadTasks,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(top: 12),
-                    itemCount: ChallengeService.dailyTaskConfigs.length,
-                    itemBuilder: (context, index) {
-                      final taskId = ChallengeService.dailyTaskConfigs.keys.elementAt(index);
-                      final status = _dailyTaskStatus[taskId];
-                      if (status == null) {
-                        return const SizedBox.shrink();
-                      }
-                      return _buildDailyTaskCard(taskId, status);
-                    },
+          Row(
+            children: [
+              GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.9),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
+                  child: Icon(Icons.arrow_back_ios, size: 18, color: Colors.blue[600]),
                 ),
-          // 每周任務頁面
-          _isLoading
-              ? const Center(child: CircularProgressIndicator())
-              : RefreshIndicator(
-                  onRefresh: _loadTasks,
-                  child: ListView.builder(
-                    padding: const EdgeInsets.only(top: 12),
-                    itemCount: ChallengeService.weeklyTaskConfigs.length,
-                    itemBuilder: (context, index) {
-                      final taskId = ChallengeService.weeklyTaskConfigs.keys.elementAt(index);
-                      final status = _weeklyTaskStatus[taskId];
-                      if (status == null) {
-                        return const SizedBox.shrink();
-                      }
-                      return _buildWeeklyTaskCard(taskId, status);
-                    },
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text(
+                  '挑戰任務',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
                   ),
+                  textAlign: TextAlign.center,
                 ),
+              ),
+              CoinDisplay(key: _coinDisplayKey),
+              const SizedBox(width: 12),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(25),
+            ),
+            child: TabBar(
+              controller: _tabController,
+              indicator: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(25),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.1),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              labelColor: Colors.blue.shade800,
+              unselectedLabelColor: Colors.white,
+              labelStyle: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+              unselectedLabelStyle: const TextStyle(
+                fontWeight: FontWeight.normal,
+                fontSize: 16,
+              ),
+              tabs: const [
+                Tab(text: '每日任務'),
+                Tab(text: '每周任務'),
+              ],
+            ),
+          ),
         ],
       ),
     );
