@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'data_service.dart';
 import 'experience_service.dart';
 import 'experience_sync_service.dart';
+import 'unified_user_data_service.dart';
 
 class UserService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -54,6 +55,15 @@ class UserService {
 
       // 3. 儲存到本地 SharedPreferences
       await _saveUserDataLocally(userData);
+
+      // 4. 初始化用戶統一資料（首次註冊）
+      await UnifiedUserDataService.initializeUserData();
+      
+      // 5. 記錄登入時間
+      await ExperienceService.recordLoginTime();
+      
+      // 6. 初始化經驗值同步
+      await ExperienceSyncService.initializeExperienceSync();
 
       return true;
     } on FirebaseAuthException {
@@ -109,6 +119,9 @@ class UserService {
 
         await _saveUserDataLocally(basicUserData);
         
+        // 初始化用戶統一資料（首次登入）
+        await UnifiedUserDataService.initializeUserData();
+        
         // 記錄登入時間
         await ExperienceService.recordLoginTime();
         
@@ -134,10 +147,16 @@ class UserService {
       // 4. 儲存到本地
       await _saveUserDataLocally(updatedData);
 
-      // 5. 記錄登入時間
+      // 5. 初始化用戶統一資料（如果需要）
+      await UnifiedUserDataService.initializeUserData();
+
+      // 6. 檢查並解鎖頭像（每次登入）
+      await UnifiedUserDataService.unlockAvatarsByLevel();
+
+      // 7. 記錄登入時間
       await ExperienceService.recordLoginTime();
       
-      // 6. 初始化經驗值同步
+      // 8. 初始化經驗值同步
       await ExperienceSyncService.initializeExperienceSync();
 
       return updatedData;
@@ -197,10 +216,16 @@ class UserService {
       // 4. 儲存到本地
       await _saveUserDataLocally(updatedData);
 
-      // 5. 記錄登入時間
+      // 5. 初始化用戶統一資料（如果需要）
+      await UnifiedUserDataService.initializeUserData();
+
+      // 6. 檢查並解鎖頭像（每次登入）
+      await UnifiedUserDataService.unlockAvatarsByLevel();
+
+      // 7. 記錄登入時間
       await ExperienceService.recordLoginTime();
       
-      // 6. 初始化經驗值同步
+      // 8. 初始化經驗值同步
       await ExperienceSyncService.initializeExperienceSync();
 
       return updatedData;

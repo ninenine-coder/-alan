@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'user_service.dart';
 import 'logger_service.dart';
 import 'level_up_reward_service.dart';
+import 'avatar_service.dart';
 
 // 升級回調函數類型
 typedef LevelUpCallback = void Function(int newLevel);
@@ -257,6 +258,9 @@ class ExperienceService {
               LoggerService.error('Error in level up callback: $e');
             }
           }
+          
+          // 檢查並解鎖基於等級的頭像
+          await AvatarService.checkAndUnlockAvatarsByLevel();
         }
       } else {
         LoggerService.error('Failed to sync experience to Firebase');

@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'logger_service.dart';
 import 'theme_background_service.dart';
 import 'theme_background_widget.dart';
+import 'unified_user_data_service.dart';
 
 class StorePage extends StatefulWidget {
   final String? initialCategory;
@@ -28,12 +29,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   final GlobalKey<CoinDisplayState> _coinDisplayKey =
       GlobalKey<CoinDisplayState>();
 
-  final List<String> categories = ['造型', '特效', '頭像', '主題桌鋪', '飼料'];
+  final List<String> categories = ['造型', '特效', '主題桌鋪', '飼料'];
 
   final Map<String, IconData> categoryIcons = {
     '造型': Icons.face,
     '特效': Icons.auto_awesome,
-    '頭像': Icons.account_circle,
     '主題桌鋪': Icons.table_bar,
     '飼料': Icons.restaurant,
   };
@@ -104,25 +104,17 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     if (_currentUser == null) return;
 
     try {
-      final uid = _currentUser!['uid'] ?? 'default';
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        final purchasedItemIds = List<String>.from(
-          userData['purchasedItems'] ?? [],
-        );
-
-        purchasedItems.clear();
-        for (final itemId in purchasedItemIds) {
-          purchasedItems[itemId] = true;
-        }
+      purchasedItems.clear();
+      
+      // 使用新的統一用戶資料服務獲取已擁有商品
+      final ownedProducts = await UnifiedUserDataService.getOwnedProducts();
+      for (final product in ownedProducts) {
+        purchasedItems[product['id']] = true;
       }
+      
+      LoggerService.info('載入已擁有商品完成，共 ${purchasedItems.length} 個');
     } catch (e) {
-      LoggerService.error('載入已購買商品時發生錯誤: $e');
+      LoggerService.error('載入已擁有商品時發生錯誤: $e');
     }
   }
 
@@ -271,10 +263,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           if (snapshot.hasData && snapshot.data != null) {
             final userData = snapshot.data!.data() as Map<String, dynamic>?;
             if (userData != null) {
-              final purchasedItemIds = List<String>.from(
-                userData['purchasedItems'] ?? [],
-              );
-              isPurchased = purchasedItemIds.contains(item.id);
+              final ownedProducts = Map<String, bool>.from(userData['ownedProducts'] ?? {});
+              isPurchased = ownedProducts[item.id] ?? false;
             }
           }
 
@@ -665,19 +655,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     super.dispose();
   }
 
-  /// 更新 Firebase 中的商品狀態
-  Future<void> _updateItemStatus(String itemId, String newStatus) async {
-    try {
-      final currentCategory = categories[_tabController.index];
-      await FirebaseFirestore.instance
-          .collection(currentCategory)
-          .doc(itemId)
-          .update({'狀態': newStatus});
-      LoggerService.info('商品狀態已更新: $itemId -> $newStatus');
-    } catch (e) {
-      LoggerService.error('更新商品狀態失敗: $e');
-    }
-  }
+
 
   /// 顯示主題應用對話框
   Future<void> _showThemeApplicationDialog(
@@ -817,50 +795,25 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     if (_currentUser == null) return false;
 
     try {
-      final uid = _currentUser!['uid'] ?? 'default';
-      final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+      // 獲取當前類別
+      final currentCategory = categories[_tabController.index];
+      final itemId = product['id'] ?? '';
 
-      await FirebaseFirestore.instance.runTransaction((transaction) async {
-        final userDoc = await transaction.get(userRef);
-        if (userDoc.exists) {
-          final userData = userDoc.data() as Map<String, dynamic>;
-          final purchasedItems = List<String>.from(
-            userData['purchasedItems'] ?? [],
-          );
-          final purchasedItemsWithCategory = Map<String, dynamic>.from(
-            userData['purchasedItemsWithCategory'] ?? {},
-          );
+              // 使用新的統一用戶資料服務更新商品狀態
+        LoggerService.info('嘗試購買商品: ID=$itemId, 名稱=${product['name']}, 類別=$currentCategory');
+        final claimSuccess = await UnifiedUserDataService.purchaseProduct(itemId);
+        
+        if (claimSuccess) {
+          setState(() {
+            purchasedItems[product['id']] = true;
+          });
 
-          if (!purchasedItems.contains(product['id'])) {
-            purchasedItems.add(product['id']);
-
-            // 獲取當前類別
-            final currentCategory = categories[_tabController.index];
-
-            // 保存商品詳細信息到 purchasedItemsWithCategory
-            purchasedItemsWithCategory[product['id']] = {
-              'name': product['name'],
-              'category': currentCategory,
-              'imageUrl': product['圖片'] ?? product['imageUrl'] ?? '',
-              'purchasedAt': FieldValue.serverTimestamp(),
-            };
-
-            transaction.update(userRef, {
-              'purchasedItems': purchasedItems,
-              'purchasedItemsWithCategory': purchasedItemsWithCategory,
-            });
-          }
-        }
-      });
-
-      // 更新 Firebase 中商品的狀態為"已擁有"
-      await _updateItemStatus(product['id'], '已擁有');
-
-      setState(() {
-        purchasedItems[product['id']] = true;
-      });
-
-      return true;
+          LoggerService.info('免費商品領取成功: ${product['name']} (ID: $itemId, 類別: $currentCategory)');
+          return true;
+      } else {
+        LoggerService.error('更新用戶庫存失敗');
+        return false;
+      }
     } catch (e) {
       LoggerService.error('領取商品時發生錯誤: $e');
       return false;
@@ -884,51 +837,23 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         final currentCategory = categories[_tabController.index];
         final itemId = product['id'] ?? '';
 
-        // 直接更新商城中的商品狀態為"已擁有"
-        await _updateItemStatus(itemId, '已擁有');
+        // 使用新的統一用戶資料服務更新商品狀態
+        LoggerService.info('嘗試購買商品: ID=$itemId, 名稱=${product['name']}, 類別=$currentCategory');
+        final purchaseSuccess = await UnifiedUserDataService.purchaseProduct(itemId);
+        
+        if (purchaseSuccess) {
+          setState(() {
+            purchasedItems[product['id']] = true;
+          });
 
-        // 更新本地購買狀態（為了向後兼容）
-        final uid = _currentUser!['uid'] ?? 'default';
-        final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+          _coinDisplayKey.currentState?.refreshCoins();
 
-        await FirebaseFirestore.instance.runTransaction((transaction) async {
-          final userDoc = await transaction.get(userRef);
-          if (userDoc.exists) {
-            final userData = userDoc.data() as Map<String, dynamic>;
-            final purchasedItems = List<String>.from(
-              userData['purchasedItems'] ?? [],
-            );
-            final purchasedItemsWithCategory = Map<String, dynamic>.from(
-              userData['purchasedItemsWithCategory'] ?? {},
-            );
-
-            if (!purchasedItems.contains(product['id'])) {
-              purchasedItems.add(product['id']);
-
-              // 保存商品詳細信息到 purchasedItemsWithCategory
-              purchasedItemsWithCategory[product['id']] = {
-                'name': product['name'],
-                'category': currentCategory,
-                'imageUrl': product['圖片'] ?? product['imageUrl'] ?? '',
-                'purchasedAt': FieldValue.serverTimestamp(),
-              };
-
-              transaction.update(userRef, {
-                'purchasedItems': purchasedItems,
-                'purchasedItemsWithCategory': purchasedItemsWithCategory,
-              });
-            }
-          }
-        });
-
-        setState(() {
-          purchasedItems[product['id']] = true;
-        });
-
-        _coinDisplayKey.currentState?.refreshCoins();
-
-        LoggerService.info('商品購買成功: ${product['name']} (類別: $currentCategory)');
-        return true;
+          LoggerService.info('商品購買成功: ${product['name']} (ID: $itemId, 類別: $currentCategory)');
+          return true;
+        } else {
+          LoggerService.error('更新用戶庫存失敗');
+          return false;
+        }
       }
     } catch (e) {
       LoggerService.error('購買商品時發生錯誤: $e');
@@ -1172,9 +1097,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             width: double.infinity,
             height: double.infinity,
             fit: BoxFit.cover,
-            alignment: category == '頭像'
-                ? Alignment.topCenter
-                : Alignment.center, // 頭像類別顯示上部分（臉部）
+            alignment: Alignment.center,
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
               return Center(
@@ -1243,8 +1166,6 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         return '經典造型';
       case '特效':
         return '經典特效';
-      case '頭像':
-        return '經典頭像';
       case '主題桌鋪':
         return '經典主題';
       case '飼料':

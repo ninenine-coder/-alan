@@ -262,6 +262,7 @@ class _LoginPageState extends State<LoginPage> {
                               width: 120,
                               height: 120,
                               fit: BoxFit.cover,
+                              alignment: Alignment.topCenter, // 顯示圖片的上部分（頭部）
                               errorBuilder: (context, error, stackTrace) {
                                 return Icon(
                                   Icons.pets,

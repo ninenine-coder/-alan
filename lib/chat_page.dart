@@ -21,10 +21,9 @@ import 'experience_display.dart';
 import 'metro_quiz_page.dart';
 import 'feature_unlock_service.dart';
 import 'welcome_coin_service.dart';
+import 'avatar_service.dart';
 
 import 'theme_background_widget.dart';
-import 'api_service.dart';
-import 'api_models.dart' as api;
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:markdown/markdown.dart' as md;
@@ -41,7 +40,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   final ScrollController _scrollController = ScrollController();
-  final ApiService _api = ApiService();
+
   bool _isTyping = false;
   bool _showMenu = false;
 
@@ -199,7 +198,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     _menuAnimationController.dispose();
     _sendButtonAnimationController.dispose();
     _backgroundAnimationController.dispose();
-    _api.dispose();
     super.dispose();
   }
 
@@ -248,6 +246,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
       // 初始化功能解鎖狀態
       await _initializeFeatureUnlockStatus();
+      
+      // 檢查並解鎖基於等級的頭像
+      await AvatarService.checkAndUnlockAvatarsByLevel();
     }
   }
 
@@ -397,26 +398,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         }
       }
 
-      // ★★★ 把目前對話轉成 API chat_history 格式
-      final history = _messages
-          .where((m) => m.imagePath == null && m.text.trim().isNotEmpty)
-          .map(
-            (m) => api.ChatMessage(
-              role: m.isUser ? 'user' : 'assistant',
-              content: m.text,
-            ),
-          )
-          .toList();
-
-      final req = api.ChatRequest(
-        message: text,
-        chatHistory: history,
-        language: 'zh-Hant',
-      );
-
-      final apiResp = await _api.sendMessage(req);
+      // 使用 ChatService 發送訊息
+      final response = await ChatService.sendMessage(text);
       final aiMessage = ChatMessage(
-        text: apiResp.response,
+        text: response,
         isUser: false,
         time: DateTime.now(),
       );
@@ -617,14 +602,30 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       builder: (context, snapshot) {
                         final imageUrl = snapshot.data;
                         if (imageUrl != null && imageUrl.isNotEmpty) {
-                          return CircleAvatar(
-                            radius: 20,
-                            backgroundImage: NetworkImage(imageUrl),
-                            onBackgroundImageError: (exception, stackTrace) {
-                              // 如果圖片載入失敗，使用預設圖標
-                            },
-                            child: null,
-                          );
+                                                  return ClipOval(
+                          child: Container(
+                            width: 40,
+                            height: 40,
+                            child: Image.network(
+                              imageUrl,
+                              width: 40,
+                              height: 40,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.topCenter, // 顯示圖片的上部分（頭部）
+                              errorBuilder: (context, error, stackTrace) {
+                                return CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: Colors.grey.shade400,
+                                  child: Icon(
+                                    Icons.person,
+                                    color: Colors.white,
+                                    size: 24,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        );
                         } else {
                           return CircleAvatar(
                             radius: 20,
@@ -877,13 +878,29 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             builder: (context, snapshot) {
               final imageUrl = snapshot.data;
               if (imageUrl != null && imageUrl.isNotEmpty) {
-                return CircleAvatar(
-                  radius: 16,
-                  backgroundImage: NetworkImage(imageUrl),
-                  onBackgroundImageError: (exception, stackTrace) {
-                    // 如果圖片載入失敗，使用預設圖標
-                  },
-                  child: null,
+                return ClipOval(
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    child: Image.network(
+                      imageUrl,
+                      width: 32,
+                      height: 32,
+                      fit: BoxFit.cover,
+                      alignment: Alignment.topCenter, // 顯示圖片的上部分（頭部）
+                      errorBuilder: (context, error, stackTrace) {
+                        return CircleAvatar(
+                          radius: 16,
+                          backgroundColor: Colors.grey.shade400,
+                          child: Icon(
+                            Icons.person,
+                            color: Colors.white,
+                            size: 16,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
                 );
               } else {
                 return CircleAvatar(
@@ -1540,12 +1557,24 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 builder: (context, snapshot) {
                   final imageUrl = snapshot.data;
                   if (imageUrl != null && imageUrl.isNotEmpty) {
-                    return CircleAvatar(
-                      backgroundImage: NetworkImage(imageUrl),
-                      onBackgroundImageError: (exception, stackTrace) {
-                        // 如果圖片載入失敗，使用預設圖標
-                      },
-                      child: null,
+                    return ClipOval(
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        child: Image.network(
+                          imageUrl,
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter, // 顯示圖片的上部分（頭部）
+                          errorBuilder: (context, error, stackTrace) {
+                            return CircleAvatar(
+                              backgroundColor: Colors.grey.shade400,
+                              child: Icon(Icons.person, color: Colors.white, size: 20),
+                            );
+                          },
+                        ),
+                      ),
                     );
                   } else {
                     return CircleAvatar(

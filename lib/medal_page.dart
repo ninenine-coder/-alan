@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:math' as math;
 import 'logger_service.dart';
 import 'theme_background_widget.dart';
+import 'user_inventory_service.dart';
 
 class MedalPage extends StatefulWidget {
   const MedalPage({super.key});
@@ -657,24 +658,8 @@ class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
 
   Future<List<Map<String, dynamic>>> _getMedals() async {
     try {
-      final querySnapshot = await FirebaseFirestore.instance.collection('徽章').get();
-      final List<Map<String, dynamic>> medals = [];
-      
-      for (final doc in querySnapshot.docs) {
-        final data = doc.data();
-        medals.add({
-          'id': doc.id,
-          'name': data['name'] ?? '未命名徽章',
-          '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
-          'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
-          '稀有度': data['稀有度'] ?? data['rarity'] ?? '普通',
-          'rarity': data['稀有度'] ?? data['rarity'] ?? '普通',
-          '達成條件': data['達成條件'] ?? data['requirement'] ?? '未知條件',
-          'requirement': data['達成條件'] ?? data['requirement'] ?? '未知條件',
-          'status': data['status'] ?? '未獲得',
-          'isObtained': data['status'] == '已獲得' || data['isObtained'] == true,
-        });
-      }
+      // 使用 UserInventoryService 獲取用戶的徽章數據
+      final medals = await UserInventoryService.getUserCategoryItems('徽章');
       
       if (_selectedFilter != null && _selectedFilter != '全部') {
         if (_selectedFilter == '一般') {
@@ -689,8 +674,8 @@ class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
       // 排序：已獲得的徽章在前，未獲得的在後
       // 在已獲得和未獲得的分組內，按稀有度排序
       medals.sort((a, b) {
-        final aObtained = a['isObtained'] as bool;
-        final bObtained = b['isObtained'] as bool;
+        final aObtained = a['status'] == '已獲得';
+        final bObtained = b['status'] == '已獲得';
         
         // 首先按獲得狀態排序
         if (aObtained && !bObtained) return -1;

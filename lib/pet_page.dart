@@ -9,6 +9,7 @@ import 'experience_service.dart';
 import 'feature_unlock_service.dart';
 import 'theme_background_service.dart';
 import 'theme_background_widget.dart';
+import 'unified_user_data_service.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -1009,27 +1010,32 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  '您還沒有購買任何$category',
+                  category == '頭像' 
+                      ? '您還沒有獲得任何頭像'
+                      : '您還沒有購買任何$category',
                   style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '前往商城購買更多$category吧！',
+                  category == '頭像'
+                      ? '提升等級來解鎖更多頭像吧！'
+                      : '前往商城購買更多$category吧！',
                   style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                 ),
                 const SizedBox(height: 16),
-                ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop();
-                    final storeCategory = _mapToStoreCategory(category);
-                    Navigator.pushNamed(
-                      context,
-                      '/store',
-                      arguments: {'category': storeCategory},
-                    );
-                  },
-                  child: const Text('前往商城'),
-                ),
+                if (category != '頭像')
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      final storeCategory = _mapToStoreCategory(category);
+                      Navigator.pushNamed(
+                        context,
+                        '/store',
+                        arguments: {'category': storeCategory},
+                      );
+                    },
+                    child: const Text('前往商城'),
+                  ),
               ],
             ),
           );
@@ -1085,8 +1091,11 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   Widget _buildItemCard(Map<String, dynamic> item, String category) {
     final name = item['name'] ?? '未命名商品';
     final imageUrl = item['圖片'] ?? item['imageUrl'] ?? '';
-    final status = item['status'] ?? '購買';
+    final status = item['status'] ?? (category == '頭像' ? '未擁有' : '購買');
     final isOwned = status == '已擁有';
+    
+    // 調試：打印商品卡片信息
+    LoggerService.debug('構建商品卡片: $name, 圖片URL: $imageUrl, 狀態: $status, 是否擁有: $isOwned');
 
     // 檢查是否為選中的項目
     bool isSelected = false;
@@ -1140,6 +1149,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                       // 圖片
                       imageUrl.isNotEmpty &&
                               imageUrl != '""' &&
+                              imageUrl != 'null' &&
                               category != '主題桌布'
                           ? Image.network(
                               imageUrl,
@@ -1353,37 +1363,22 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
       if (category == '主題桌布') {
         return await _getOwnedThemeBackgrounds();
       }
-
-      // 映射類別名稱
-      final storeCategory = _mapToStoreCategory(category);
-
-      // 從 Firebase 讀取該類別的所有商品
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection(storeCategory)
-          .get();
-
-      final List<Map<String, dynamic>> ownedItems = [];
-
-      for (final doc in querySnapshot.docs) {
-        final data = doc.data();
-        // 檢查 Firebase 中商品的狀態欄位
-        final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
-        final isFirebaseOwned = firebaseStatus == '已擁有';
-
-        // 如果 Firebase 狀態為已擁有，則顯示
-        if (isFirebaseOwned) {
-          ownedItems.add({
-            'id': doc.id,
-            'name': data['name'] ?? '未命名商品',
-            '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
-            'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
-            'category': category,
-            'status': '已擁有',
-          });
-        }
+      
+      // 如果是頭像分類，使用統一用戶資料服務
+      if (category == '頭像') {
+        return await UnifiedUserDataService.getUnlockedAvatars();
       }
 
+      // 使用統一用戶資料服務獲取已擁有的商品
+      final ownedItems = await UnifiedUserDataService.getOwnedProductsByCategory(category);
+      
       LoggerService.info('獲取到 ${ownedItems.length} 個已擁有的 $category 商品');
+      
+      // 調試：打印每個商品的詳細信息
+      for (final item in ownedItems) {
+        LoggerService.info('商品: ${item['name']}, 圖片: ${item['圖片']}, 狀態: ${item['status']}');
+      }
+      
       return ownedItems;
     } catch (e) {
       LoggerService.error(
@@ -1457,54 +1452,15 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
       if (category == '主題桌布') {
         return await _getAllThemeBackgrounds();
       }
-
-      // 映射類別名稱
-      final storeCategory = _mapToStoreCategory(category);
-
-      // 獲取當前用戶資料
-      final userData = await UserService.getCurrentUserData();
-      if (userData == null) return [];
-
-      final uid = userData['uid'] ?? 'default';
-
-      // 從用戶文檔獲取已購買的商品列表
-      final userDoc = await FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .get();
-
-      if (!userDoc.exists) return [];
-
-      final userDocData = userDoc.data() as Map<String, dynamic>;
-      final purchasedItemIds = List<String>.from(
-        userDocData['purchasedItems'] ?? [],
-      );
-
-      // 從 Firebase 讀取該類別的所有商品
-      final querySnapshot = await FirebaseFirestore.instance
-          .collection(storeCategory)
-          .get();
-
-      final List<Map<String, dynamic>> allItems = [];
-
-      for (final doc in querySnapshot.docs) {
-        final data = doc.data();
-        // 檢查該商品是否在用戶的已購買列表中
-        final isOwned = purchasedItemIds.contains(doc.id);
-        // 檢查 Firebase 中商品的狀態欄位
-        final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
-        final isFirebaseOwned = firebaseStatus == '已擁有';
-
-        allItems.add({
-          'id': doc.id,
-          'name': data['name'] ?? '未命名商品',
-          '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
-          'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
-          'category': category,
-          'status': (isOwned || isFirebaseOwned) ? '已擁有' : '未擁有',
-        });
+      
+      // 如果是頭像分類，使用統一用戶資料服務
+      if (category == '頭像') {
+        return await UnifiedUserDataService.getAllAvatars();
       }
 
+      // 使用統一用戶資料服務獲取所有商品
+      final allItems = await UnifiedUserDataService.getAllProductsByCategory(category);
+      
       // 排序：已擁有的商品在前，未擁有的商品在後
       allItems.sort((a, b) {
         final aOwned = a['status'] == '已擁有';
