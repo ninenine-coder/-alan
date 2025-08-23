@@ -21,7 +21,8 @@ class PetPage extends StatefulWidget {
 
 class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   late String petName;
-  final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
+  final GlobalKey<CoinDisplayState> _coinDisplayKey =
+      GlobalKey<CoinDisplayState>();
   bool _isInteracting = false;
   late AnimationController _backButtonController;
   late Animation<double> _backButtonAnimation;
@@ -31,15 +32,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   String? _selectedEffectItem; // 選中的特效項目
   String? _selectedThemeItem; // 選中的主題桌布項目
   String? _selectedFoodItem; // 選中的飼料項目
-  
-
 
   @override
   void initState() {
     super.initState();
     petName = widget.initialPetName;
     _loadPetName();
-    
+
     // 初始化返回鍵動畫
     _backButtonController = AnimationController(
       duration: const Duration(milliseconds: 150),
@@ -48,17 +47,18 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     _backButtonAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
       CurvedAnimation(parent: _backButtonController, curve: Curves.easeInOut),
     );
-    
+
     // 初始化背包選單動畫
     _backpackAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
     _backpackAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _backpackAnimationController, curve: Curves.easeInOut),
+      CurvedAnimation(
+        parent: _backpackAnimationController,
+        curve: Curves.easeInOut,
+      ),
     );
-    
-
   }
 
   // 將背包彈窗中的分類名稱對應到商城的標籤名稱
@@ -76,7 +76,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
-      
+
       if (category == '造型') {
         final selectedStyle = prefs.getString('selected_style_$username');
         setState(() {
@@ -116,8 +116,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
-      final selectedStyleImage = prefs.getString('selected_style_image_$username');
-      
+      final selectedStyleImage = prefs.getString(
+        'selected_style_image_$username',
+      );
+
       if (selectedStyleImage != null && selectedStyleImage.isNotEmpty) {
         return selectedStyleImage;
       } else {
@@ -129,12 +131,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     }
   }
 
-
-
   Future<void> _loadPetName() async {
     final userData = await UserService.getCurrentUserData();
     if (userData == null) return;
-    
+
     final username = userData['username'] ?? 'default';
     final prefs = await SharedPreferences.getInstance();
     final aiNameKey = 'ai_name_$username';
@@ -144,26 +144,26 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     });
   }
 
-
-
   // 處理桌寵互動
   Future<void> _handlePetInteraction() async {
     if (_isInteracting) return; // 防止重複點擊
-    
+
     setState(() {
       _isInteracting = true;
     });
 
     try {
       // 檢查挑戰任務功能是否已解鎖
-      final isChallengeUnlocked = await FeatureUnlockService.isFeatureUnlocked('挑戰任務');
+      final isChallengeUnlocked = await FeatureUnlockService.isFeatureUnlocked(
+        '挑戰任務',
+      );
       if (isChallengeUnlocked) {
         // 處理桌寵互動任務
         final interactionReward = await ChallengeService.handlePetInteraction();
         if (interactionReward) {
           // 刷新金幣顯示
           _coinDisplayKey.currentState?.refreshCoins();
-          
+
           // 顯示成功訊息
           if (mounted) {
             final scaffoldMessenger = ScaffoldMessenger.of(context);
@@ -173,14 +173,14 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   children: [
                     Icon(Icons.pets, color: Colors.white),
                     SizedBox(width: 8),
-                    Expanded(
-                      child: Text('完成每日挑戰，請自挑戰任務領取獎勵'),
-                    ),
+                    Expanded(child: Text('完成每日挑戰，請自挑戰任務領取獎勵')),
                   ],
                 ),
                 backgroundColor: Colors.green.shade600,
                 behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
                 duration: Duration(seconds: 3),
               ),
             );
@@ -215,15 +215,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
             children: [
               // 頂部狀態欄
               _buildStatusBar(),
-              
+
               // 用戶資料區域
               _buildUserProfileSection(),
-              
+
               // 中央寵物角色
-              Expanded(
-                child: _buildPetCharacter(),
-              ),
-              
+              Expanded(child: _buildPetCharacter()),
+
               // 底部背包區域
               _buildBackpackSection(),
             ],
@@ -283,7 +281,11 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           // 右側圖標
           Row(
             children: [
-              Icon(Icons.signal_cellular_4_bar, size: 16, color: Colors.grey[600]),
+              Icon(
+                Icons.signal_cellular_4_bar,
+                size: 16,
+                color: Colors.grey[600],
+              ),
               const SizedBox(width: 4),
               Icon(Icons.wifi, size: 16, color: Colors.grey[600]),
               const SizedBox(width: 4),
@@ -326,11 +328,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                           child: Center(
                             child: CircularProgressIndicator(
                               value: loadingProgress.expectedTotalBytes != null
-                                  ? loadingProgress.cumulativeBytesLoaded / 
-                                    loadingProgress.expectedTotalBytes!
+                                  ? loadingProgress.cumulativeBytesLoaded /
+                                        loadingProgress.expectedTotalBytes!
                                   : null,
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           ),
                         );
@@ -357,17 +361,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                 return CircleAvatar(
                   radius: 20,
                   backgroundColor: Colors.blue.shade400,
-                  child: Icon(
-                    Icons.pets,
-                    color: Colors.white,
-                    size: 24,
-                  ),
+                  child: Icon(Icons.pets, color: Colors.white, size: 24),
                 );
               }
             },
           ),
           const SizedBox(width: 12),
-          
+
           // 中間：用戶名稱和等級
           Expanded(
             child: Column(
@@ -404,9 +404,14 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                     FutureBuilder<Map<String, dynamic>>(
                       future: ExperienceService.getCurrentExperience(),
                       builder: (context, snapshot) {
-                        final level = snapshot.hasData ? snapshot.data!['level'] as int : 1;
+                        final level = snapshot.hasData
+                            ? snapshot.data!['level'] as int
+                            : 1;
                         return Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.blue[600],
                             borderRadius: BorderRadius.circular(12),
@@ -464,7 +469,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               ],
             ),
           ),
-          
+
           // 右側：金幣顯示
           CoinDisplay(key: _coinDisplayKey),
         ],
@@ -488,13 +493,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               decoration: BoxDecoration(
                 color: Colors.lightBlue[50],
                 borderRadius: BorderRadius.circular(100),
-                                 boxShadow: [
-                   BoxShadow(
-                     color: Colors.blue.withValues(alpha: 0.2),
-                     blurRadius: 20,
-                     offset: const Offset(0, 10),
-                   ),
-                 ],
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.blue.withValues(alpha: 0.2),
+                    blurRadius: 20,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
               ),
               child: Stack(
                 alignment: Alignment.center,
@@ -584,7 +589,9 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                                         height: 8,
                                         decoration: BoxDecoration(
                                           color: Colors.black,
-                                          borderRadius: BorderRadius.circular(4),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 12),
@@ -593,7 +600,9 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                                         height: 8,
                                         decoration: BoxDecoration(
                                           color: Colors.black,
-                                          borderRadius: BorderRadius.circular(4),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -608,7 +617,9 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                                         height: 8,
                                         decoration: BoxDecoration(
                                           color: Colors.pink[200],
-                                          borderRadius: BorderRadius.circular(4),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                       ),
                                       const SizedBox(width: 16),
@@ -617,7 +628,9 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                                         height: 8,
                                         decoration: BoxDecoration(
                                           color: Colors.pink[200],
-                                          borderRadius: BorderRadius.circular(4),
+                                          borderRadius: BorderRadius.circular(
+                                            4,
+                                          ),
                                         ),
                                       ),
                                     ],
@@ -708,7 +721,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
             color: Colors.transparent,
           ),
         ),
-        
+
         // 背包選單
         AnimatedContainer(
           duration: const Duration(milliseconds: 300),
@@ -720,7 +733,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.white.withValues(alpha: 0.9), Colors.grey.shade50.withValues(alpha: 0.9)],
+                  colors: [
+                    Colors.white.withValues(alpha: 0.9),
+                    Colors.grey.shade50.withValues(alpha: 0.9),
+                  ],
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                 ),
@@ -738,7 +754,11 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   // 標題
                   Row(
                     children: [
-                      Icon(Icons.backpack, color: Colors.orange.shade600, size: 24),
+                      Icon(
+                        Icons.backpack,
+                        color: Colors.orange.shade600,
+                        size: 24,
+                      ),
                       const SizedBox(width: 8),
                       Text(
                         '我的背包',
@@ -751,7 +771,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  
+
                   // 背包分類網格
                   GridView.count(
                     shrinkWrap: true,
@@ -762,10 +782,26 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                     childAspectRatio: 0.8,
                     children: [
                       _buildBackpackCategory('造型', Icons.face, Colors.blue),
-                      _buildBackpackCategory('特效', Icons.auto_awesome, Colors.purple),
-                      _buildBackpackCategory('飼料', Icons.restaurant, Colors.green),
-                      _buildBackpackCategory('頭像', Icons.account_circle, Colors.teal),
-                      _buildBackpackCategory('主題桌布', Icons.table_bar, Colors.indigo),
+                      _buildBackpackCategory(
+                        '特效',
+                        Icons.auto_awesome,
+                        Colors.purple,
+                      ),
+                      _buildBackpackCategory(
+                        '飼料',
+                        Icons.restaurant,
+                        Colors.green,
+                      ),
+                      _buildBackpackCategory(
+                        '頭像',
+                        Icons.account_circle,
+                        Colors.teal,
+                      ),
+                      _buildBackpackCategory(
+                        '主題桌布',
+                        Icons.table_bar,
+                        Colors.indigo,
+                      ),
                       Container(), // 空的容器保持網格對齊
                     ],
                   ),
@@ -795,10 +831,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: color.withValues(alpha: 0.3),
-            width: 1,
-          ),
+          border: Border.all(color: color.withValues(alpha: 0.3), width: 1),
           boxShadow: [
             BoxShadow(
               color: color.withValues(alpha: 0.2),
@@ -810,11 +843,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              icon,
-              size: 32,
-              color: color,
-            ),
+            Icon(icon, size: 32, color: color),
             const SizedBox(height: 8),
             Text(
               title,
@@ -831,17 +860,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     );
   }
 
-
-
-
-
   void _showCategoryDialog(String category) {
     // 重置狀態
     _showUnownedItems = false;
-    
+
     // 載入當前選中的項目狀態
     _loadSelectedItems(category);
-    
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -897,12 +922,12 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
   Widget _buildCategoryContent(String category, StateSetter setDialogState) {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _showUnownedItems ? _getAllItemsByCategory(category) : _getOwnedItemsByCategory(category),
+      future: _showUnownedItems
+          ? _getAllItemsByCategory(category)
+          : _getOwnedItemsByCategory(category),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(
-            child: CircularProgressIndicator(),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
 
         if (snapshot.hasError) {
@@ -914,10 +939,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                 const SizedBox(height: 16),
                 Text(
                   '載入失敗',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.red.shade600,
-                  ),
+                  style: TextStyle(fontSize: 18, color: Colors.red.shade600),
                 ),
               ],
             ),
@@ -939,27 +961,23 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                 const SizedBox(height: 16),
                 Text(
                   '您還沒有購買任何$category',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '前往商城購買更多$category吧！',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade500,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                 ),
                 const SizedBox(height: 16),
                 ElevatedButton(
                   onPressed: () {
                     Navigator.of(context).pop();
                     final storeCategory = _mapToStoreCategory(category);
-                    Navigator.pushNamed(context, '/store', arguments: {
-                      'category': storeCategory,
-                    });
+                    Navigator.pushNamed(
+                      context,
+                      '/store',
+                      arguments: {'category': storeCategory},
+                    );
                   },
                   child: const Text('前往商城'),
                 ),
@@ -976,21 +994,18 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
-                                     Checkbox(
-                     value: _showUnownedItems,
-                     onChanged: (value) {
-                       setDialogState(() {
-                         _showUnownedItems = value ?? false;
-                       });
-                     },
-                     activeColor: Colors.blue[600],
-                   ),
+                  Checkbox(
+                    value: _showUnownedItems,
+                    onChanged: (value) {
+                      setDialogState(() {
+                        _showUnownedItems = value ?? false;
+                      });
+                    },
+                    activeColor: Colors.blue[600],
+                  ),
                   const Text(
                     '顯示未擁有商品',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey,
-                    ),
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
               ),
@@ -1006,10 +1021,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   mainAxisSpacing: 12,
                 ),
                 itemCount: categoryItems.length,
-                                 itemBuilder: (context, index) {
-                   final item = categoryItems[index];
-                   return _buildItemCard(item, category);
-                 },
+                itemBuilder: (context, index) {
+                  final item = categoryItems[index];
+                  return _buildItemCard(item, category);
+                },
               ),
             ),
           ],
@@ -1023,7 +1038,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     final imageUrl = item['圖片'] ?? item['imageUrl'] ?? '';
     final status = item['status'] ?? '購買';
     final isOwned = status == '已擁有';
-    
+
     // 檢查是否為選中的項目
     bool isSelected = false;
     if (category == '造型') {
@@ -1037,13 +1052,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     } else if (category == '飼料') {
       isSelected = _selectedFoodItem == name;
     }
-    
+
     return Card(
       elevation: isOwned ? 3 : 1,
       color: isOwned ? Colors.white : Colors.grey.shade100,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: isSelected 
+        side: isSelected
             ? BorderSide(color: Colors.green.shade600, width: 3)
             : BorderSide.none,
       ),
@@ -1058,50 +1073,68 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               child: Container(
                 width: double.infinity,
                 decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
                   gradient: LinearGradient(
-                    colors: isOwned 
+                    colors: isOwned
                         ? [Colors.blue.shade100, Colors.blue.shade200]
                         : [Colors.grey.shade200, Colors.grey.shade300],
                   ),
                 ),
                 child: ClipRRect(
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(12),
+                  ),
                   child: Stack(
                     children: [
                       // 圖片
-                      imageUrl.isNotEmpty && imageUrl != '""' && category != '主題桌布'
+                      imageUrl.isNotEmpty &&
+                              imageUrl != '""' &&
+                              category != '主題桌布'
                           ? Image.network(
                               imageUrl,
                               width: double.infinity,
                               height: double.infinity,
                               fit: BoxFit.cover,
                               color: isOwned ? null : Colors.grey.shade400,
-                              colorBlendMode: isOwned ? null : BlendMode.saturation,
-                              loadingBuilder: (context, child, loadingProgress) {
-                                if (loadingProgress == null) return child;
-                                return Center(
-                                  child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
-                                        : null,
-                                  ),
-                                );
-                              },
+                              colorBlendMode: isOwned
+                                  ? null
+                                  : BlendMode.saturation,
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        value:
+                                            loadingProgress
+                                                    .expectedTotalBytes !=
+                                                null
+                                            ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                            : null,
+                                      ),
+                                    );
+                                  },
                               errorBuilder: (context, error, stackTrace) {
                                 return _buildNoImagePlaceholder();
                               },
                             )
                           : category == '主題桌布'
-                              ? _buildThemeBackgroundPlaceholder(item)
-                              : _buildNoImagePlaceholder(),
+                          ? _buildThemeBackgroundPlaceholder(item)
+                          : _buildNoImagePlaceholder(),
                       // 未擁有標籤
                       if (!isOwned)
                         Positioned(
                           top: 8,
                           right: 8,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.grey.shade600,
                               borderRadius: BorderRadius.circular(8),
@@ -1122,7 +1155,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                           bottom: 8,
                           right: 8,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.blue.shade600,
                               borderRadius: BorderRadius.circular(8),
@@ -1172,14 +1208,15 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.image_not_supported_outlined, size: 32, color: Colors.grey.shade400),
+          Icon(
+            Icons.image_not_supported_outlined,
+            size: 32,
+            color: Colors.grey.shade400,
+          ),
           const SizedBox(height: 4),
           Text(
             '無圖片',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 10,
-            ),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
           ),
         ],
       ),
@@ -1189,9 +1226,9 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   Widget _buildThemeBackgroundPlaceholder(Map<String, dynamic> item) {
     final imageUrl = item['圖片'] ?? item['imageUrl'] ?? '';
     final name = item['name'] ?? '未命名主題';
-    
+
     LoggerService.debug('主題桌布圖片 URL: $imageUrl, 名稱: $name');
-    
+
     if (imageUrl.isNotEmpty && imageUrl != '""') {
       return Image.network(
         imageUrl,
@@ -1203,7 +1240,8 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           return Center(
             child: CircularProgressIndicator(
               value: loadingProgress.expectedTotalBytes != null
-                  ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                  ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
                   : null,
             ),
           );
@@ -1228,10 +1266,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   const SizedBox(height: 4),
                   Text(
                     '圖片載入失敗',
-                    style: TextStyle(
-                      color: Colors.grey.shade600,
-                      fontSize: 10,
-                    ),
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 10),
                   ),
                 ],
               ),
@@ -1250,19 +1285,9 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(
-                Icons.image,
-                color: Colors.white,
-                size: 32,
-              ),
+              Icon(Icons.image, color: Colors.white, size: 32),
               const SizedBox(height: 4),
-              Text(
-                '無圖片',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                ),
-              ),
+              Text('無圖片', style: TextStyle(color: Colors.white, fontSize: 10)),
             ],
           ),
         ),
@@ -1270,32 +1295,32 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     }
   }
 
-
-
   /// 獲取指定類別中狀態為「已擁有」的商品
-  Future<List<Map<String, dynamic>>> _getOwnedItemsByCategory(String category) async {
+  Future<List<Map<String, dynamic>>> _getOwnedItemsByCategory(
+    String category,
+  ) async {
     try {
       // 如果是主題桌布分類，使用主題背景服務
       if (category == '主題桌布') {
         return await _getOwnedThemeBackgrounds();
       }
-      
+
       // 映射類別名稱
       final storeCategory = _mapToStoreCategory(category);
-      
+
       // 從 Firebase 讀取該類別的所有商品
       final querySnapshot = await FirebaseFirestore.instance
           .collection(storeCategory)
           .get();
-      
+
       final List<Map<String, dynamic>> ownedItems = [];
-      
+
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
         // 檢查 Firebase 中商品的狀態欄位
         final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
         final isFirebaseOwned = firebaseStatus == '已擁有';
-        
+
         // 如果 Firebase 狀態為已擁有，則顯示
         if (isFirebaseOwned) {
           ownedItems.add({
@@ -1308,11 +1333,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           });
         }
       }
-      
+
       LoggerService.info('獲取到 ${ownedItems.length} 個已擁有的 $category 商品');
       return ownedItems;
     } catch (e) {
-      LoggerService.error('Error getting owned items for category $category: $e');
+      LoggerService.error(
+        'Error getting owned items for category $category: $e',
+      );
       return [];
     }
   }
@@ -1324,20 +1351,28 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('主題桌鋪')
           .get();
-      
+
       final List<Map<String, dynamic>> ownedThemeItems = [];
-      
+
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
         // 檢查 Firebase 中商品的狀態欄位
         final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
         final isFirebaseOwned = firebaseStatus == '已擁有';
-        
+
         // 嘗試從多個可能的欄位獲取圖片 URL
-        final imageUrl = data['圖片'] ?? data['imageUrl'] ?? data['image'] ?? data['url'] ?? data['img'] ?? '';
-        
-        LoggerService.debug('主題桌布資料 - ID: ${doc.id}, 名稱: ${data['name']}, 狀態: $firebaseStatus, 圖片URL: $imageUrl');
-        
+        final imageUrl =
+            data['圖片'] ??
+            data['imageUrl'] ??
+            data['image'] ??
+            data['url'] ??
+            data['img'] ??
+            '';
+
+        LoggerService.debug(
+          '主題桌布資料 - ID: ${doc.id}, 名稱: ${data['name']}, 狀態: $firebaseStatus, 圖片URL: $imageUrl',
+        );
+
         // 如果 Firebase 狀態為已擁有，則顯示
         if (isFirebaseOwned) {
           ownedThemeItems.add({
@@ -1351,11 +1386,11 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
             'price': data['price'] ?? data['價格'] ?? 0,
             'isFree': (data['price'] ?? data['價格'] ?? 0) == 0,
           });
-          
+
           LoggerService.info('已擁有主題桌布: ${data['name']}, 圖片: $imageUrl');
         }
       }
-      
+
       LoggerService.info('獲取到 ${ownedThemeItems.length} 個已擁有的主題背景');
       return ownedThemeItems;
     } catch (e) {
@@ -1365,40 +1400,44 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   }
 
   /// 獲取指定類別中的所有商品（已擁有 + 未擁有）
-  Future<List<Map<String, dynamic>>> _getAllItemsByCategory(String category) async {
+  Future<List<Map<String, dynamic>>> _getAllItemsByCategory(
+    String category,
+  ) async {
     try {
       // 如果是主題桌布分類，使用主題背景服務
       if (category == '主題桌布') {
         return await _getAllThemeBackgrounds();
       }
-      
+
       // 映射類別名稱
       final storeCategory = _mapToStoreCategory(category);
-      
+
       // 獲取當前用戶資料
       final userData = await UserService.getCurrentUserData();
       if (userData == null) return [];
-      
+
       final uid = userData['uid'] ?? 'default';
-      
+
       // 從用戶文檔獲取已購買的商品列表
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
-      
+
       if (!userDoc.exists) return [];
-      
+
       final userDocData = userDoc.data() as Map<String, dynamic>;
-      final purchasedItemIds = List<String>.from(userDocData['purchasedItems'] ?? []);
-      
+      final purchasedItemIds = List<String>.from(
+        userDocData['purchasedItems'] ?? [],
+      );
+
       // 從 Firebase 讀取該類別的所有商品
       final querySnapshot = await FirebaseFirestore.instance
           .collection(storeCategory)
           .get();
-      
+
       final List<Map<String, dynamic>> allItems = [];
-      
+
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
         // 檢查該商品是否在用戶的已購買列表中
@@ -1406,7 +1445,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         // 檢查 Firebase 中商品的狀態欄位
         final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
         final isFirebaseOwned = firebaseStatus == '已擁有';
-        
+
         allItems.add({
           'id': doc.id,
           'name': data['name'] ?? '未命名商品',
@@ -1416,7 +1455,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           'status': (isOwned || isFirebaseOwned) ? '已擁有' : '未擁有',
         });
       }
-      
+
       // 排序：已擁有的商品在前，未擁有的商品在後
       allItems.sort((a, b) {
         final aOwned = a['status'] == '已擁有';
@@ -1425,7 +1464,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         if (!aOwned && bOwned) return 1;
         return 0;
       });
-      
+
       return allItems;
     } catch (e) {
       LoggerService.error('Error getting all items for category $category: $e');
@@ -1440,17 +1479,23 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('主題桌鋪')
           .get();
-      
+
       final List<Map<String, dynamic>> themeItems = [];
-      
+
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
-        
+
         // 嘗試從多個可能的欄位獲取圖片 URL
-        final imageUrl = data['圖片'] ?? data['imageUrl'] ?? data['image'] ?? data['url'] ?? data['img'] ?? '';
+        final imageUrl =
+            data['圖片'] ??
+            data['imageUrl'] ??
+            data['image'] ??
+            data['url'] ??
+            data['img'] ??
+            '';
         final firebaseStatus = data['狀態'] ?? data['status'] ?? '';
         final isFirebaseOwned = firebaseStatus == '已擁有';
-        
+
         themeItems.add({
           'id': doc.id,
           'name': data['name'] ?? '未命名主題',
@@ -1462,10 +1507,12 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           'price': data['price'] ?? data['價格'] ?? 0,
           'isFree': (data['price'] ?? data['價格'] ?? 0) == 0,
         });
-        
-        LoggerService.debug('所有主題桌布 - ID: ${doc.id}, 名稱: ${data['name']}, 狀態: $firebaseStatus, 圖片: $imageUrl');
+
+        LoggerService.debug(
+          '所有主題桌布 - ID: ${doc.id}, 名稱: ${data['name']}, 狀態: $firebaseStatus, 圖片: $imageUrl',
+        );
       }
-      
+
       // 排序：已擁有的商品在前，未擁有的商品在後
       themeItems.sort((a, b) {
         final aOwned = a['status'] == '已擁有';
@@ -1474,15 +1521,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         if (!aOwned && bOwned) return 1;
         return 0;
       });
-      
+
       return themeItems;
     } catch (e) {
       LoggerService.error('Error getting all theme backgrounds: $e');
       return [];
     }
   }
-
-
 
   IconData _getCategoryIcon(String category) {
     switch (category) {
@@ -1527,20 +1572,20 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
-      
+
       final itemName = item['name'] ?? '未命名商品';
       final itemImageUrl = item['圖片'] ?? item['imageUrl'] ?? '';
-      
+
       if (category == '造型') {
         // 保存選擇的造型
         await prefs.setString('selected_style_$username', itemName);
         await prefs.setString('selected_style_image_$username', itemImageUrl);
-        
+
         // 更新選中狀態
         setState(() {
           _selectedStyleItem = itemName;
         });
-        
+
         if (mounted) {
           // 顯示視覺反饋
           _showSelectionFeedback(context, itemName, itemImageUrl, category);
@@ -1549,12 +1594,12 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         // 保存選擇的頭像
         await prefs.setString('selected_avatar_$username', itemName);
         await prefs.setString('selected_avatar_image_$username', itemImageUrl);
-        
+
         // 更新選中狀態
         setState(() {
           _selectedAvatarItem = itemName;
         });
-        
+
         if (mounted) {
           // 顯示視覺反饋
           _showSelectionFeedback(context, itemName, itemImageUrl, category);
@@ -1563,12 +1608,12 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         // 保存選擇的特效
         await prefs.setString('selected_effect_$username', itemName);
         await prefs.setString('selected_effect_image_$username', itemImageUrl);
-        
+
         // 更新選中狀態
         setState(() {
           _selectedEffectItem = itemName;
         });
-        
+
         if (mounted) {
           // 顯示視覺反饋
           _showSelectionFeedback(context, itemName, itemImageUrl, category);
@@ -1580,19 +1625,19 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           item['圖片'] ?? item['imageUrl'] ?? '',
           item['name'] ?? '未命名主題',
         );
-        
+
         // 同時保存到本地存儲以顯示選擇狀態
         await prefs.setString('selected_theme_$username', itemName);
         await prefs.setString('selected_theme_image_$username', itemImageUrl);
-        
+
         // 更新選中狀態
         setState(() {
           _selectedThemeItem = itemName;
         });
-        
+
         // 立即通知所有頁面更新背景
         ThemeBackgroundNotifier().notifyBackgroundChanged();
-        
+
         if (mounted) {
           // 顯示視覺反饋
           _showSelectionFeedback(context, itemName, itemImageUrl, category);
@@ -1601,12 +1646,12 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         // 保存選擇的飼料
         await prefs.setString('selected_food_$username', itemName);
         await prefs.setString('selected_food_image_$username', itemImageUrl);
-        
+
         // 更新選中狀態
         setState(() {
           _selectedFoodItem = itemName;
         });
-        
+
         if (mounted) {
           // 顯示視覺反饋
           _showSelectionFeedback(context, itemName, itemImageUrl, category);
@@ -1627,7 +1672,12 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   }
 
   /// 顯示選擇反饋
-  void _showSelectionFeedback(BuildContext context, String itemName, String itemImageUrl, String category) {
+  void _showSelectionFeedback(
+    BuildContext context,
+    String itemName,
+    String itemImageUrl,
+    String category,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -1656,7 +1706,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 16),
-                
+
                 // 標題
                 Text(
                   '選擇成功！',
@@ -1667,7 +1717,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(height: 8),
-                
+
                 // 商品圖片
                 if (itemImageUrl.isNotEmpty)
                   Container(
@@ -1696,7 +1746,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                     ),
                   ),
                 const SizedBox(height: 12),
-                
+
                 // 商品名稱
                 Text(
                   itemName,
@@ -1707,18 +1757,15 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 4),
-                
+
                 // 類別說明
                 Text(
                   _getCategoryDescription(category),
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 20),
-                
+
                 // 確認按鈕
                 ElevatedButton(
                   onPressed: () => Navigator.of(context).pop(),
@@ -1728,7 +1775,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 12,
+                    ),
                   ),
                   child: const Text('確定'),
                 ),
@@ -1742,8 +1792,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
   /// 顯示編輯名字對話框
   void _showEditNameDialog() {
-    final TextEditingController nameController = TextEditingController(text: petName);
-    
+    final TextEditingController nameController = TextEditingController(
+      text: petName,
+    );
+
     showDialog(
       context: context,
       builder: (BuildContext context) {
@@ -1758,10 +1810,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text(
-                '請輸入新的名字：',
-                style: TextStyle(fontSize: 16),
-              ),
+              const Text('請輸入新的名字：', style: TextStyle(fontSize: 16)),
               const SizedBox(height: 16),
               TextField(
                 controller: nameController,
@@ -1772,11 +1821,17 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
+                    borderSide: BorderSide(
+                      color: Colors.blue.shade600,
+                      width: 2,
+                    ),
                   ),
                 ),
                 textAlign: TextAlign.center,
-                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ],
           ),
@@ -1813,15 +1868,15 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
-      
+
       // 保存新名字到本地存儲
       await prefs.setString('ai_name_$username', newName);
-      
+
       // 更新狀態
       setState(() {
         petName = newName;
       });
-      
+
       // 顯示成功訊息
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1838,7 +1893,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           ),
         );
       }
-      
+
       LoggerService.info('Pet name updated to: $newName');
     } catch (e) {
       LoggerService.error('Error updating pet name: $e');

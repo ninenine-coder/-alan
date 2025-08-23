@@ -25,6 +25,9 @@ import 'welcome_coin_service.dart';
 import 'theme_background_widget.dart';
 import 'api_service.dart';
 import 'api_models.dart' as api;
+import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:markdown/markdown.dart' as md;
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -723,14 +726,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                             ],
                           ],
                         )
-                      : Text(
-                          message.text,
-                          style: TextStyle(
-                            color: message.isUser
-                                ? Colors.white
-                                : Colors.black87,
-                            fontSize: 16,
-                          ),
+                      : _MarkdownBubble(
+                          text: message.text,
+                          isUser: message.isUser,
                         ),
                 ),
                 const SizedBox(height: 6),
@@ -1680,4 +1678,106 @@ class BackgroundPatternPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+class _MarkdownBubble extends StatelessWidget {
+  final String text;
+  final bool isUser;
+  const _MarkdownBubble({required this.text, required this.isUser});
+
+  @override
+  Widget build(BuildContext context) {
+    // 依「自己/AI」切換顏色
+    final base = Theme.of(context).textTheme.bodyMedium!;
+    final textColor = isUser ? Colors.white : Colors.black87;
+    final linkColor = isUser ? Colors.white : Colors.blue.shade700;
+    final codeBg = isUser
+        ? Colors.white.withOpacity(0.15)
+        : Colors.grey.shade200;
+
+    return MarkdownBody(
+      data: text,
+      // 讓文字可選取（需要 flutter_markdown 新版）
+      selectable: true,
+      // 點到連結時用 url_launcher 開啟
+      onTapLink: (text, href, title) async {
+        if (href == null) return;
+        final uri = Uri.tryParse(href);
+        if (uri != null) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      },
+      // 自訂圖片顯示（限制寬度、避免把泡泡撐爆）
+      imageBuilder: (uri, title, alt) {
+        return ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 260), // 視你泡泡寬度調
+          child: Image.network(uri.toString(), fit: BoxFit.contain),
+        );
+      },
+      // 讓程式碼區塊可以橫向滑動、不會爆行
+      builders: {
+        'code': CodeElementBuilder(codeBg), // 行內 `code`
+      },
+      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+        p: base.copyWith(color: textColor, fontSize: 16),
+        h1: base.copyWith(
+          color: textColor,
+          fontSize: 22,
+          fontWeight: FontWeight.bold,
+        ),
+        h2: base.copyWith(
+          color: textColor,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        ),
+        h3: base.copyWith(
+          color: textColor,
+          fontSize: 18,
+          fontWeight: FontWeight.bold,
+        ),
+        listBullet: base.copyWith(color: textColor),
+        blockquote: base.copyWith(color: textColor.withOpacity(0.85)),
+        code: base.copyWith(
+          fontFamily: 'monospace',
+          backgroundColor: codeBg,
+          color: textColor,
+        ),
+        codeblockDecoration: BoxDecoration(
+          color: codeBg,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        a: TextStyle(
+          // 連結樣式
+          color: linkColor,
+          decoration: TextDecoration.underline,
+          decorationColor: linkColor.withOpacity(0.6),
+        ),
+      ),
+    );
+  }
+}
+
+// 讓三個反引號 ``` 的區塊可橫向滑動
+class CodeElementBuilder extends MarkdownElementBuilder {
+  final Color bg;
+  CodeElementBuilder(this.bg);
+
+  @override
+  Widget visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    return Container(
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(top: 6, bottom: 6),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Text(
+          element.textContent,
+          style: const TextStyle(fontFamily: 'monospace'),
+        ),
+      ),
+    );
+  }
 }

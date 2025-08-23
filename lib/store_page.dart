@@ -23,12 +23,13 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   static const double _cardBorderRadius = 12.0;
   static const double _buttonBorderRadius = 8.0;
   static const double _gridChildAspectRatio = 0.75;
-  
+
   late TabController _tabController;
-  final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
+  final GlobalKey<CoinDisplayState> _coinDisplayKey =
+      GlobalKey<CoinDisplayState>();
 
   final List<String> categories = ['造型', '特效', '頭像', '主題桌鋪', '飼料'];
-  
+
   final Map<String, IconData> categoryIcons = {
     '造型': Icons.face,
     '特效': Icons.auto_awesome,
@@ -44,7 +45,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   void initState() {
     super.initState();
     _tabController = TabController(length: categories.length, vsync: this);
-    
+
     // 設置初始類別
     if (widget.initialCategory != null) {
       final index = categories.indexOf(widget.initialCategory!);
@@ -52,7 +53,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         _tabController.index = index;
       }
     }
-    
+
     _loadUserData();
     _testFirebaseConnection();
   }
@@ -75,13 +76,13 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   Future<void> _testThemeBackgroundData() async {
     try {
       LoggerService.info('開始測試主題桌鋪數據...');
-      
+
       final querySnapshot = await FirebaseFirestore.instance
           .collection('主題桌鋪')
           .get();
-      
+
       LoggerService.info('主題桌鋪集合文檔數量: ${querySnapshot.docs.length}');
-      
+
       for (int i = 0; i < querySnapshot.docs.length; i++) {
         final doc = querySnapshot.docs[i];
         final data = doc.data();
@@ -101,18 +102,20 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
 
   Future<void> _loadPurchasedItems() async {
     if (_currentUser == null) return;
-    
+
     try {
       final uid = _currentUser!['uid'] ?? 'default';
       final userDoc = await FirebaseFirestore.instance
           .collection('users')
           .doc(uid)
           .get();
-      
+
       if (userDoc.exists) {
         final userData = userDoc.data() as Map<String, dynamic>;
-        final purchasedItemIds = List<String>.from(userData['purchasedItems'] ?? []);
-        
+        final purchasedItemIds = List<String>.from(
+          userData['purchasedItems'] ?? [],
+        );
+
         purchasedItems.clear();
         for (final itemId in purchasedItemIds) {
           purchasedItems[itemId] = true;
@@ -128,23 +131,23 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     if (_currentUser == null) {
       return Stream.value(null);
     }
-    
+
     final uid = _currentUser!['uid'] ?? 'default';
-    return FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid)
-        .snapshots();
+    return FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
   }
 
   /// 統一的確認對話框
-  Future<void> _showConfirmDialog(BuildContext context, Map<String, dynamic> product) async {
+  Future<void> _showConfirmDialog(
+    BuildContext context,
+    Map<String, dynamic> product,
+  ) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final status = product['狀態'] ?? product['status'] ?? '購買';
     final price = product['價格'] ?? product['price'] ?? 0;
-    
+
     String title;
     String content;
-    
+
     if (status == '登入領取') {
       title = '領取確認';
       content = '確定要領取「${product['name']}」嗎？';
@@ -152,7 +155,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       title = '購買確認';
       content = '確定要購買「${product['name']}」嗎？價格：$price 元';
     }
-    
+
     final bool? confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -178,13 +181,13 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       } else {
         success = await _buyItem(product);
       }
-      
+
       if (success) {
         // 如果是主題桌鋪，詢問是否要應用主題
         if (categories[_tabController.index] == '主題桌鋪') {
           await _showThemeApplicationDialog(context, product);
         }
-        
+
         scaffoldMessenger.showSnackBar(
           SnackBar(
             content: Row(
@@ -192,13 +195,17 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                 const Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('${status == '登入領取' ? '領取' : '購買'}成功！${product['name'] ?? '商品'} 已加入收藏'),
+                  child: Text(
+                    '${status == '登入領取' ? '領取' : '購買'}成功！${product['name'] ?? '商品'} 已加入收藏',
+                  ),
                 ),
               ],
             ),
             backgroundColor: Colors.green.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -216,7 +223,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             ),
             backgroundColor: Colors.red.shade600,
             behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
             duration: const Duration(seconds: 2),
           ),
         );
@@ -230,10 +239,16 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       final name = data['name'] ?? '未命名商品';
       final price = data['price'] ?? data['價格'] ?? 0;
       final popularity = data['常見度'] ?? data['popularity'] ?? '常見';
-      final imageUrl = data['圖片'] ?? data['imageUrl'] ?? data['image'] ?? data['url'] ?? data['img'] ?? '';
+      final imageUrl =
+          data['圖片'] ??
+          data['imageUrl'] ??
+          data['image'] ??
+          data['url'] ??
+          data['img'] ??
+          '';
       final description = data['description'] ?? '';
       final status = data['狀態'] ?? data['status'] ?? '購買';
-      
+
       // 調試信息：打印圖片URL
       LoggerService.debug('商品: $name, 圖片URL: $imageUrl, 類別: $category');
       LoggerService.debug('完整商品數據: $data');
@@ -243,31 +258,35 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       LoggerService.debug('  data["image"]: ${data['image']}');
       LoggerService.debug('  data["url"]: ${data['url']}');
       LoggerService.debug('  data["img"]: ${data['img']}');
-      
+
       // 檢查是否為經典款商品（任何類別且價格為0）
       final isClassicItem = price == 0;
-      
+
       return StreamBuilder<DocumentSnapshot?>(
         stream: _getUserPurchasedItemsStream(),
         builder: (context, snapshot) {
           bool isPurchased = false;
           bool isItemUnavailable = false; // 新增：檢查商品是否不可用
-          
+
           if (snapshot.hasData && snapshot.data != null) {
             final userData = snapshot.data!.data() as Map<String, dynamic>?;
             if (userData != null) {
-              final purchasedItemIds = List<String>.from(userData['purchasedItems'] ?? []);
+              final purchasedItemIds = List<String>.from(
+                userData['purchasedItems'] ?? [],
+              );
               isPurchased = purchasedItemIds.contains(item.id);
             }
           }
-          
+
           // 檢查 Firebase 中商品的狀態欄位
           isItemUnavailable = status == '已擁有';
-          
+
           return Card(
             margin: const EdgeInsets.all(8),
             elevation: 3,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(_cardBorderRadius)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(_cardBorderRadius),
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -276,7 +295,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                   height: _cardImageHeight,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(_cardBorderRadius)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(_cardBorderRadius),
+                    ),
                     gradient: LinearGradient(
                       colors: [Colors.blue.shade100, Colors.blue.shade200],
                     ),
@@ -284,14 +305,24 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                   child: Stack(
                     children: [
                       Center(
-                        child: _buildImageWidget(imageUrl, name, price, description, isClassicItem, category),
+                        child: _buildImageWidget(
+                          imageUrl,
+                          name,
+                          price,
+                          description,
+                          isClassicItem,
+                          category,
+                        ),
                       ),
                       // 稀有度標籤
                       Positioned(
                         top: 8,
                         right: 8,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: _getRarityColor(popularity),
                             borderRadius: BorderRadius.circular(12),
@@ -313,7 +344,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           top: isClassicItem ? 36 : 8, // 如果是經典款，位置下移
                           left: 8,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.green.shade600,
                               borderRadius: BorderRadius.circular(12),
@@ -351,7 +385,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                         Text(
                           isClassicItem ? '價格: 免費' : '價格: $price 元',
                           style: TextStyle(
-                            color: isClassicItem ? Colors.green.shade700 : Colors.amber.shade700,
+                            color: isClassicItem
+                                ? Colors.green.shade700
+                                : Colors.amber.shade700,
                             fontWeight: FontWeight.bold,
                             fontSize: 11,
                           ),
@@ -369,17 +405,28 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           width: double.infinity,
                           height: _buttonHeight,
                           child: ElevatedButton(
-                            onPressed: (isPurchased || isItemUnavailable) ? null : () => _showConfirmDialog(context, {...data, 'id': item.id}),
+                            onPressed: (isPurchased || isItemUnavailable)
+                                ? null
+                                : () => _showConfirmDialog(context, {
+                                    ...data,
+                                    'id': item.id,
+                                  }),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: isClassicItem ? Colors.green.shade600 : Colors.blue.shade600,
+                              backgroundColor: isClassicItem
+                                  ? Colors.green.shade600
+                                  : Colors.blue.shade600,
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(_buttonBorderRadius),
+                                borderRadius: BorderRadius.circular(
+                                  _buttonBorderRadius,
+                                ),
                               ),
                               padding: EdgeInsets.zero,
                             ),
                             child: Text(
-                              (isPurchased || isItemUnavailable) ? '已擁有' : (isClassicItem ? '領取' : '購買'),
+                              (isPurchased || isItemUnavailable)
+                                  ? '已擁有'
+                                  : (isClassicItem ? '領取' : '購買'),
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -408,10 +455,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               children: [
                 Icon(Icons.error_outline, color: Colors.red.shade400),
                 const SizedBox(height: 8),
-                Text(
-                  '載入失敗',
-                  style: TextStyle(color: Colors.red.shade600),
-                ),
+                Text('載入失敗', style: TextStyle(color: Colors.red.shade600)),
               ],
             ),
           ),
@@ -424,9 +468,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     // 如果是主題桌鋪分類，直接從 Firebase 讀取
     if (category == '主題桌鋪') {
       return StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('主題桌鋪')
-            .snapshots(),
+        stream: FirebaseFirestore.instance.collection('主題桌鋪').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.hasError) {
             LoggerService.error('載入主題桌鋪資料時發生錯誤: ${snapshot.error}');
@@ -434,7 +476,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.error_outline, size: 64, color: Colors.red.shade400),
+                  Icon(
+                    Icons.error_outline,
+                    size: 64,
+                    color: Colors.red.shade400,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     '載入資料錯誤: ${snapshot.error}',
@@ -452,7 +498,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               ),
             );
           }
-          
+
           if (!snapshot.hasData) {
             return const Center(
               child: Column(
@@ -465,7 +511,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               ),
             );
           }
-          
+
           final items = snapshot.data!.docs;
 
           if (items.isEmpty) {
@@ -473,22 +519,20 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.table_bar_outlined, size: 64, color: Colors.grey.shade400),
+                  Icon(
+                    Icons.table_bar_outlined,
+                    size: 64,
+                    color: Colors.grey.shade400,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     '此類別尚無主題桌鋪',
-                    style: TextStyle(
-                      fontSize: 18,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     '類別: $category',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade500,
-                    ),
+                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                   ),
                 ],
               ),
@@ -520,11 +564,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         },
       );
     }
-    
+
     return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection(category)
-          .snapshots(),
+      stream: FirebaseFirestore.instance.collection(category).snapshots(),
       builder: (context, snapshot) {
         if (snapshot.hasError) {
           LoggerService.error('載入商品資料時發生錯誤: ${snapshot.error}');
@@ -550,7 +592,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             ),
           );
         }
-        
+
         if (!snapshot.hasData) {
           return const Center(
             child: Column(
@@ -563,7 +605,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             ),
           );
         }
-        
+
         final items = snapshot.data!.docs;
 
         if (items.isEmpty) {
@@ -571,22 +613,20 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.shopping_bag_outlined, size: 64, color: Colors.grey.shade400),
+                Icon(
+                  Icons.shopping_bag_outlined,
+                  size: 64,
+                  color: Colors.grey.shade400,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   '此類別尚無商品',
-                  style: TextStyle(
-                    fontSize: 18,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 18, color: Colors.grey.shade600),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   '類別: $category',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey.shade500,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                 ),
               ],
             ),
@@ -640,7 +680,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   }
 
   /// 顯示主題應用對話框
-  Future<void> _showThemeApplicationDialog(BuildContext context, Map<String, dynamic> product) async {
+  Future<void> _showThemeApplicationDialog(
+    BuildContext context,
+    Map<String, dynamic> product,
+  ) async {
     final bool? applyTheme = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -666,7 +709,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade600, size: 20),
+                  Icon(
+                    Icons.info_outline,
+                    color: Colors.blue.shade600,
+                    size: 20,
+                  ),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
@@ -717,16 +764,14 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       if (success && mounted) {
         // 通知背景更新
         ThemeBackgroundNotifier().notifyBackgroundChanged();
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 const SizedBox(width: 8),
-                Expanded(
-                  child: Text('主題「$themeName」已成功應用到所有頁面！'),
-                ),
+                Expanded(child: Text('主題「$themeName」已成功應用到所有頁面！')),
               ],
             ),
             backgroundColor: Colors.green.shade600,
@@ -770,24 +815,28 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   /// 領取商品（免費）
   Future<bool> _claimItem(Map<String, dynamic> product) async {
     if (_currentUser == null) return false;
-    
+
     try {
       final uid = _currentUser!['uid'] ?? 'default';
       final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-      
+
       await FirebaseFirestore.instance.runTransaction((transaction) async {
         final userDoc = await transaction.get(userRef);
         if (userDoc.exists) {
           final userData = userDoc.data() as Map<String, dynamic>;
-          final purchasedItems = List<String>.from(userData['purchasedItems'] ?? []);
-          final purchasedItemsWithCategory = Map<String, dynamic>.from(userData['purchasedItemsWithCategory'] ?? {});
-          
+          final purchasedItems = List<String>.from(
+            userData['purchasedItems'] ?? [],
+          );
+          final purchasedItemsWithCategory = Map<String, dynamic>.from(
+            userData['purchasedItemsWithCategory'] ?? {},
+          );
+
           if (!purchasedItems.contains(product['id'])) {
             purchasedItems.add(product['id']);
-            
+
             // 獲取當前類別
             final currentCategory = categories[_tabController.index];
-            
+
             // 保存商品詳細信息到 purchasedItemsWithCategory
             purchasedItemsWithCategory[product['id']] = {
               'name': product['name'],
@@ -795,7 +844,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               'imageUrl': product['圖片'] ?? product['imageUrl'] ?? '',
               'purchasedAt': FieldValue.serverTimestamp(),
             };
-            
+
             transaction.update(userRef, {
               'purchasedItems': purchasedItems,
               'purchasedItemsWithCategory': purchasedItemsWithCategory,
@@ -803,14 +852,14 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           }
         }
       });
-      
+
       // 更新 Firebase 中商品的狀態為"已擁有"
       await _updateItemStatus(product['id'], '已擁有');
-      
+
       setState(() {
         purchasedItems[product['id']] = true;
       });
-      
+
       return true;
     } catch (e) {
       LoggerService.error('領取商品時發生錯誤: $e');
@@ -818,14 +867,12 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     }
   }
 
-
-
   Future<bool> _buyItem(Map<String, dynamic> product) async {
     if (_currentUser == null) return false;
-    
+
     final price = product['價格'] ?? product['price'] ?? 0;
     final hasEnoughCoins = await CoinService.hasEnoughCoins(price);
-    
+
     if (!hasEnoughCoins) {
       return false;
     }
@@ -836,24 +883,28 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         // 獲取當前類別
         final currentCategory = categories[_tabController.index];
         final itemId = product['id'] ?? '';
-        
+
         // 直接更新商城中的商品狀態為"已擁有"
         await _updateItemStatus(itemId, '已擁有');
-        
+
         // 更新本地購買狀態（為了向後兼容）
         final uid = _currentUser!['uid'] ?? 'default';
         final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
-        
+
         await FirebaseFirestore.instance.runTransaction((transaction) async {
           final userDoc = await transaction.get(userRef);
           if (userDoc.exists) {
             final userData = userDoc.data() as Map<String, dynamic>;
-            final purchasedItems = List<String>.from(userData['purchasedItems'] ?? []);
-            final purchasedItemsWithCategory = Map<String, dynamic>.from(userData['purchasedItemsWithCategory'] ?? {});
-            
+            final purchasedItems = List<String>.from(
+              userData['purchasedItems'] ?? [],
+            );
+            final purchasedItemsWithCategory = Map<String, dynamic>.from(
+              userData['purchasedItemsWithCategory'] ?? {},
+            );
+
             if (!purchasedItems.contains(product['id'])) {
               purchasedItems.add(product['id']);
-              
+
               // 保存商品詳細信息到 purchasedItemsWithCategory
               purchasedItemsWithCategory[product['id']] = {
                 'name': product['name'],
@@ -861,7 +912,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                 'imageUrl': product['圖片'] ?? product['imageUrl'] ?? '',
                 'purchasedAt': FieldValue.serverTimestamp(),
               };
-              
+
               transaction.update(userRef, {
                 'purchasedItems': purchasedItems,
                 'purchasedItemsWithCategory': purchasedItemsWithCategory,
@@ -869,13 +920,13 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
             }
           }
         });
-        
+
         setState(() {
           purchasedItems[product['id']] = true;
         });
-        
+
         _coinDisplayKey.currentState?.refreshCoins();
-        
+
         LoggerService.info('商品購買成功: ${product['name']} (類別: $currentCategory)');
         return true;
       }
@@ -886,7 +937,15 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     return false;
   }
 
-  void _showImagePreview(BuildContext context, String imageUrl, String name, dynamic price, String description, bool isClassicItem, String? category) {
+  void _showImagePreview(
+    BuildContext context,
+    String imageUrl,
+    String name,
+    dynamic price,
+    String description,
+    bool isClassicItem,
+    String? category,
+  ) {
     showDialog(
       context: context,
       barrierDismissible: true,
@@ -900,9 +959,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               Positioned.fill(
                 child: GestureDetector(
                   onTap: () => Navigator.of(context).pop(),
-                  child: Container(
-                    color: Colors.black.withValues(alpha: 0.8),
-                  ),
+                  child: Container(color: Colors.black.withValues(alpha: 0.8)),
                 ),
               ),
               // 圖片容器
@@ -936,8 +993,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                             if (loadingProgress == null) return child;
                             return Center(
                               child: CircularProgressIndicator(
-                                value: loadingProgress.expectedTotalBytes != null
-                                    ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                                value:
+                                    loadingProgress.expectedTotalBytes != null
+                                    ? loadingProgress.cumulativeBytesLoaded /
+                                          loadingProgress.expectedTotalBytes!
                                     : null,
                                 color: Colors.white,
                               ),
@@ -981,7 +1040,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           bottom: 16,
                           right: 16,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.7),
                               borderRadius: BorderRadius.circular(12),
@@ -1007,22 +1069,31 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                                 Text(
                                   isClassicItem ? '價格: 免費' : '價格: $price 元',
                                   style: TextStyle(
-                                    color: isClassicItem ? Colors.green.shade300 : Colors.amber.shade300,
+                                    color: isClassicItem
+                                        ? Colors.green.shade300
+                                        : Colors.amber.shade300,
                                     fontSize: 14,
                                     fontWeight: FontWeight.w600,
                                   ),
                                   textAlign: TextAlign.right,
                                 ),
-                                if (isClassicItem || description.isNotEmpty) ...[
+                                if (isClassicItem ||
+                                    description.isNotEmpty) ...[
                                   const SizedBox(height: 8),
                                   Container(
-                                    constraints: const BoxConstraints(maxWidth: 200),
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 200,
+                                    ),
                                     child: Text(
-                                      isClassicItem 
+                                      isClassicItem
                                           ? '登入即可免費領取的${_getClassicLabel(category)}，每位玩家都能獲得！'
                                           : description,
                                       style: TextStyle(
-                                        color: isClassicItem ? Colors.orange.shade300 : Colors.white.withValues(alpha: 0.9),
+                                        color: isClassicItem
+                                            ? Colors.orange.shade300
+                                            : Colors.white.withValues(
+                                                alpha: 0.9,
+                                              ),
                                         fontSize: 12,
                                         fontWeight: FontWeight.w500,
                                       ),
@@ -1048,34 +1119,62 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildImageWidget(String imageUrl, String name, int price, String description, bool isClassicItem, String? category) {
+  Widget _buildImageWidget(
+    String imageUrl,
+    String name,
+    int price,
+    String description,
+    bool isClassicItem,
+    String? category,
+  ) {
     // 調試信息：詳細記錄圖片URL檢查過程
     LoggerService.debug('_buildImageWidget - 商品: $name, 原始圖片URL: "$imageUrl"');
-    LoggerService.debug('_buildImageWidget - URL長度: ${imageUrl.length}, 是否為空: ${imageUrl.isEmpty}');
+    LoggerService.debug(
+      '_buildImageWidget - URL長度: ${imageUrl.length}, 是否為空: ${imageUrl.isEmpty}',
+    );
     LoggerService.debug('_buildImageWidget - URL是否為""字符串: ${imageUrl == '""'}');
-    LoggerService.debug('_buildImageWidget - URL是否為null字符串: ${imageUrl == 'null'}');
-    LoggerService.debug('_buildImageWidget - URL是否以http開頭: ${imageUrl.startsWith('http://')}');
-    LoggerService.debug('_buildImageWidget - URL是否以https開頭: ${imageUrl.startsWith('https://')}');
-    
+    LoggerService.debug(
+      '_buildImageWidget - URL是否為null字符串: ${imageUrl == 'null'}',
+    );
+    LoggerService.debug(
+      '_buildImageWidget - URL是否以http開頭: ${imageUrl.startsWith('http://')}',
+    );
+    LoggerService.debug(
+      '_buildImageWidget - URL是否以https開頭: ${imageUrl.startsWith('https://')}',
+    );
+
     // 檢查圖片URL是否有效
-    bool isValidUrl = imageUrl.isNotEmpty && 
-                     imageUrl != '""' && 
-                     imageUrl != 'null' && 
-                     (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'));
-    
+    bool isValidUrl =
+        imageUrl.isNotEmpty &&
+        imageUrl != '""' &&
+        imageUrl != 'null' &&
+        (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'));
+
     LoggerService.debug('_buildImageWidget - URL是否有效: $isValidUrl');
-    
+
     if (isValidUrl) {
       return GestureDetector(
-        onTap: () => _showImagePreview(context, imageUrl, name, price, description, isClassicItem, category),
+        onTap: () => _showImagePreview(
+          context,
+          imageUrl,
+          name,
+          price,
+          description,
+          isClassicItem,
+          category,
+        ),
         child: ClipRRect(
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(_cardBorderRadius)),
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(_cardBorderRadius),
+          ),
           child: Image.network(
             imageUrl,
             width: double.infinity,
             height: double.infinity,
             fit: BoxFit.cover,
-            alignment: category == '頭像' ? Alignment.topCenter : Alignment.center, // 頭像類別顯示上部分（臉部）
+            alignment: category == '頭像'
+                ? Alignment.topCenter
+                : Alignment.center, // 頭像類別顯示上部分（臉部）
             loadingBuilder: (context, child, loadingProgress) {
               if (loadingProgress == null) return child;
               return Center(
@@ -1084,10 +1183,13 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                   children: [
                     CircularProgressIndicator(
                       value: loadingProgress.expectedTotalBytes != null
-                          ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
+                          ? loadingProgress.cumulativeBytesLoaded /
+                                loadingProgress.expectedTotalBytes!
                           : null,
                       strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        Colors.blue.shade600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
@@ -1118,14 +1220,15 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.image_not_supported_outlined, size: 48, color: Colors.grey.shade400),
+          Icon(
+            Icons.image_not_supported_outlined,
+            size: 48,
+            color: Colors.grey.shade400,
+          ),
           const SizedBox(height: 8),
           Text(
             '此商品尚未建立模型',
-            style: TextStyle(
-              color: Colors.grey.shade600,
-              fontSize: 12,
-            ),
+            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
             textAlign: TextAlign.center,
           ),
         ],
@@ -1133,42 +1236,42 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     );
   }
 
-     /// 根據類別獲取經典款標籤文字
-   String _getClassicLabel(String? category) {
-     switch (category) {
-       case '造型':
-         return '經典造型';
-       case '特效':
-         return '經典特效';
-       case '頭像':
-         return '經典頭像';
-       case '主題桌鋪':
-         return '經典主題';
-       case '飼料':
-         return '經典飼料';
-       default:
-         return '經典款';
-     }
-   }
+  /// 根據類別獲取經典款標籤文字
+  String _getClassicLabel(String? category) {
+    switch (category) {
+      case '造型':
+        return '經典造型';
+      case '特效':
+        return '經典特效';
+      case '頭像':
+        return '經典頭像';
+      case '主題桌鋪':
+        return '經典主題';
+      case '飼料':
+        return '經典飼料';
+      default:
+        return '經典款';
+    }
+  }
 
-   Color _getRarityColor(String rarity) {
-     switch (rarity) {
-       case '稀有':
-         return Colors.purple.shade400;
-       case '普通':
-         return Colors.blue.shade400;
-       case '常見':
-         return Colors.green.shade400;
-       case 'rare':
-         return Colors.purple.shade400;
-       case 'common':
-         return Colors.green.shade400;
-       case 'normal':
-         return Colors.blue.shade400;
-       default:
-         return Colors.grey.shade400;
-     }
-   }
+  Color _getRarityColor(String rarity) {
+    switch (rarity) {
+      case '稀有':
+        return Colors.purple.shade400;
+      case '普通':
+        return Colors.blue.shade400;
+      case '常見':
+        return Colors.green.shade400;
+      case 'rare':
+        return Colors.purple.shade400;
+      case 'common':
+        return Colors.green.shade400;
+      case 'normal':
+        return Colors.blue.shade400;
+      default:
+        return Colors.grey.shade400;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1181,7 +1284,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           child: Column(
             children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [Colors.blue.shade600, Colors.blue.shade800],
@@ -1215,7 +1321,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                                 ),
                               ],
                             ),
-                            child: Icon(Icons.arrow_back_ios, size: 18, color: Colors.blue[600]),
+                            child: Icon(
+                              Icons.arrow_back_ios,
+                              size: 18,
+                              color: Colors.blue[600],
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1256,17 +1366,23 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                         ),
                         labelColor: Colors.blue.shade800,
                         unselectedLabelColor: Colors.white,
-                        labelStyle: const TextStyle(fontWeight: FontWeight.bold),
-                        tabs: categories.map((c) => Tab(
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(categoryIcons[c], size: 16),
-                              const SizedBox(width: 4),
-                              Text(c),
-                            ],
-                          ),
-                        )).toList(),
+                        labelStyle: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        tabs: categories
+                            .map(
+                              (c) => Tab(
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(categoryIcons[c], size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(c),
+                                  ],
+                                ),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ),
                   ],
@@ -1275,7 +1391,9 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               Expanded(
                 child: TabBarView(
                   controller: _tabController,
-                  children: categories.map((category) => buildCategoryTab(category)).toList(),
+                  children: categories
+                      .map((category) => buildCategoryTab(category))
+                      .toList(),
                 ),
               ),
             ],
