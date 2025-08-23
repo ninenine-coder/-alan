@@ -1,28 +1,43 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
-import 'login_page.dart';
+import 'login_page.dart' as login;
 import 'chat_page.dart';
-import 'pet_page.dart';
+import 'pet_page.dart' as pet;
 import 'medal_page.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
 import 'experience_sync_service.dart';
 import 'store_page.dart';
+// 匯入我們自訂的 ApiService
+import 'api_service.dart';
+import 'api_models.dart';
+
+// 為了處理 SSL 驗證問題 (相當於 Python 的 verify=False)
+class _MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
+  }
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // 【重要】在 App 啟動前，設定全域的 HTTP client 規則來忽略憑證錯誤
+  HttpOverrides.global = _MyHttpOverrides();
+
   // 初始化 logger
   LoggerService.initialize();
   LoggerService.info('應用程序啟動');
-  
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   LoggerService.info('Firebase 初始化完成');
-  
+
   runApp(const MyApp());
 }
 
@@ -49,7 +64,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
+
     switch (state) {
       case AppLifecycleState.resumed:
         // 應用程序恢復時，記錄登入時間
@@ -71,11 +86,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       if (FirebaseAuth.instance.currentUser != null) {
         // 記錄登入時間
         await ExperienceService.recordLoginTime();
-        
+
         // 初始化經驗值同步，顯示上次離線經驗值
         await ExperienceSyncService.initializeExperienceSync();
-        
-        LoggerService.info('Login time recorded and experience sync initialized on app resumed');
+
+        LoggerService.info(
+          'Login time recorded and experience sync initialized on app resumed',
+        );
       }
     } catch (e) {
       LoggerService.error('Error handling app resumed: $e');
@@ -88,11 +105,13 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       if (FirebaseAuth.instance.currentUser != null) {
         // 計算並添加基於登入時間的經驗值
         await ExperienceService.calculateAndAddLoginExperience();
-        
+
         // 保存當前經驗值作為離線數據
         await ExperienceSyncService.saveOfflineExperience();
-        
-        LoggerService.info('Experience calculated and offline data saved on app background');
+
+        LoggerService.info(
+          'Experience calculated and offline data saved on app background',
+        );
       }
     } catch (e) {
       LoggerService.error('Error handling app background: $e');
@@ -107,9 +126,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       theme: ThemeData(primarySwatch: Colors.blue),
       initialRoute: '/login',
       routes: {
-        '/login': (context) => const LoginPage(),
+        '/login': (context) => const login.LoginPage(),
         '/chat': (context) => const ChatPage(),
-        '/pet': (context) => const PetPage(initialPetName: '捷米'),
+        '/pet': (context) => const pet.PetPage(initialPetName: '捷米'),
         '/medal': (context) => const MedalPage(),
         '/store': (context) {
           final args = ModalRoute.of(context)?.settings.arguments;
@@ -123,5 +142,3 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
   }
 }
-
-

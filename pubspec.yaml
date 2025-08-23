@@ -30,6 +30,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  http: ^1.2.1
+  flutter_markdown: ^0.7.2
+  url_launcher: ^6.3.0
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.
@@ -54,7 +57,7 @@ dev_dependencies:
   # activated in the `analysis_options.yaml` file located at the root of your
   # package. See that file for information about deactivating specific lint
   # rules and activating additional ones.
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -71,7 +74,13 @@ flutter:
   assets:
     - assets/images/
     - assets/app_images/
-    - assets/捷運知識王/
+    - assets/mrt_knowledge/
+    # ??��????��??????????��?????
+    - assets/mrt_knowledge/index.html
+    - assets/mrt_knowledge/style.css
+    - assets/mrt_knowledge/main.js
+    - assets/mrt_knowledge/mrt_music.mp3
+    - assets/mrt_knowledge/jamie_take_mrt.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

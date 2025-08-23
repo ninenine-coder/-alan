@@ -6,55 +6,55 @@ class AppTheme {
   static const Color primaryColor = Color(0xFF2196F3);
   static const Color primaryLightColor = Color(0xFF64B5F6);
   static const Color primaryDarkColor = Color(0xFF1976D2);
-  
+
   // 輔助色調
   static const Color accentColor = Color(0xFFFF9800);
   static const Color accentLightColor = Color(0xFFFFB74D);
   static const Color accentDarkColor = Color(0xFFF57C00);
-  
+
   // 成功色調
   static const Color successColor = Color(0xFF4CAF50);
   static const Color successLightColor = Color(0xFF81C784);
   static const Color successDarkColor = Color(0xFF388E3C);
-  
+
   // 警告色調
   static const Color warningColor = Color(0xFFFFC107);
   static const Color warningLightColor = Color(0xFFFFD54F);
   static const Color warningDarkColor = Color(0xFFFF8F00);
-  
+
   // 錯誤色調
   static const Color errorColor = Color(0xFFF44336);
   static const Color errorLightColor = Color(0xFFE57373);
   static const Color errorDarkColor = Color(0xFFD32F2F);
-  
+
   // 中性色調
   static const Color backgroundColor = Color(0xFFF5F5F5);
   static const Color surfaceColor = Color(0xFFFFFFFF);
   static const Color cardColor = Color(0xFFFFFFFF);
   static const Color dividerColor = Color(0xFFE0E0E0);
-  
+
   // 文字色調
   static const Color textPrimaryColor = Color(0xFF212121);
   static const Color textSecondaryColor = Color(0xFF757575);
   static const Color textHintColor = Color(0xFFBDBDBD);
   static const Color textDisabledColor = Color(0xFFE0E0E0);
-  
+
   // 漸變色調
   static const List<Color> primaryGradient = [
     Color(0xFF2196F3),
     Color(0xFF64B5F6),
   ];
-  
+
   static const List<Color> accentGradient = [
     Color(0xFFFF9800),
     Color(0xFFFFB74D),
   ];
-  
+
   static const List<Color> successGradient = [
     Color(0xFF4CAF50),
     Color(0xFF81C784),
   ];
-  
+
   static const List<Color> errorGradient = [
     Color(0xFFF44336),
     Color(0xFFE57373),
@@ -94,9 +94,7 @@ class AppTheme {
       color: cardColor,
       elevation: 2,
       shadowColor: Colors.black.withOpacity(0.1),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -104,41 +102,26 @@ class AppTheme {
         foregroundColor: Colors.white,
         elevation: 2,
         shadowColor: primaryColor.withOpacity(0.3),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: primaryColor,
         side: const BorderSide(color: primaryColor, width: 1.5),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: primaryColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        textStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -239,10 +222,7 @@ class AppTheme {
         color: textHintColor,
       ),
     ),
-    iconTheme: const IconThemeData(
-      color: primaryColor,
-      size: 24,
-    ),
+    iconTheme: const IconThemeData(color: primaryColor, size: 24),
     dividerTheme: const DividerThemeData(
       color: dividerColor,
       thickness: 1,
@@ -251,9 +231,7 @@ class AppTheme {
     snackBarTheme: SnackBarThemeData(
       backgroundColor: textPrimaryColor,
       contentTextStyle: const TextStyle(color: Colors.white),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       behavior: SnackBarBehavior.floating,
     ),
   );
@@ -292,9 +270,7 @@ class AppTheme {
       color: const Color(0xFF1E1E1E),
       elevation: 4,
       shadowColor: Colors.black.withOpacity(0.3),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
     ),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
@@ -302,41 +278,26 @@ class AppTheme {
         foregroundColor: Colors.black,
         elevation: 4,
         shadowColor: primaryLightColor.withOpacity(0.3),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: primaryLightColor,
         side: const BorderSide(color: primaryLightColor, width: 1.5),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-        textStyle: const TextStyle(
-          fontSize: 16,
-          fontWeight: FontWeight.w600,
-        ),
+        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: primaryLightColor,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        textStyle: const TextStyle(
-          fontSize: 14,
-          fontWeight: FontWeight.w500,
-        ),
+        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
       ),
     ),
     inputDecorationTheme: InputDecorationTheme(
@@ -437,10 +398,7 @@ class AppTheme {
         color: Color(0xFF757575),
       ),
     ),
-    iconTheme: const IconThemeData(
-      color: primaryLightColor,
-      size: 24,
-    ),
+    iconTheme: const IconThemeData(color: primaryLightColor, size: 24),
     dividerTheme: const DividerThemeData(
       color: Color(0xFF424242),
       thickness: 1,
@@ -449,9 +407,7 @@ class AppTheme {
     snackBarTheme: SnackBarThemeData(
       backgroundColor: const Color(0xFF1E1E1E),
       contentTextStyle: const TextStyle(color: Colors.white),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       behavior: SnackBarBehavior.floating,
     ),
   );

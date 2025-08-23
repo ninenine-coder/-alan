@@ -25,9 +25,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 音效元素
     const backgroundMusic = document.getElementById('background-music');
-    const gameStartSound = document.getElementById('game-start-sound'); // 根據 HTML 中的 ID 修正
-    const correctSound = document.getElementById('correct-sound');
-    const incorrectSound = document.getElementById('incorrect-sound');
+    const gameStartSound  = document.getElementById('game-start-sound');
+    const correctSound    = document.getElementById('correct-sound');
+    const incorrectSound  = document.getElementById('incorrect-sound');
+
+    if (correctSound)  correctSound.volume  = 1.0;
+    if (incorrectSound) incorrectSound.volume = 1.0;
+    if (gameStartSound) gameStartSound.volume = 1.0;
 
     const reviewModal = document.getElementById('review-modal');
     const closeReviewBtn = document.getElementById('close-review-modal-btn');
@@ -35,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const leaderboardModal = document.getElementById('leaderboard-modal');
     const closeLeaderboardBtn = document.getElementById('close-leaderboard-modal-btn');
-    const leaderboardList = document.getElementById('leaderboard-list');
+    const leaderboardList = document.getElementById('leaderboard-list');    
 
     // --- 遊戲狀態變數 ---
     let state = {
@@ -77,19 +81,26 @@ document.addEventListener('DOMContentLoaded', () => {
     document.body.addEventListener('click', unlockAudioContext, { once: true });
 
     // 頁面載入後，就讓背景音樂準備好並嘗試播放
-    function startInitialMusic() {
+    // function startInitialMusic() {
+    //     if (backgroundMusic) {
+    //         backgroundMusic.volume = 0.2; // 調整背景音樂音量為 20%
+    //         backgroundMusic.play().catch(e => {
+    //             console.log("瀏覽器阻擋了初始自動播放。等待使用者點擊...");
+    //         });
+    //     }
+    //     // 確保答題音效音量為 100%
+    //     if (correctSound) correctSound.volume = 1.0;
+    //     if (incorrectSound) incorrectSound.volume = 1.0;
+    //     if (gameStartSound) gameStartSound.volume = 1.0;
+    // }
+    // startInitialMusic(); // 載入時就嘗試播放
+    // 在「開始遊玩」按下時才播放 BGM（符合行動裝置策略）
+    startGameBtn.addEventListener('click', () => {
         if (backgroundMusic) {
-            backgroundMusic.volume = 0.2; // 調整背景音樂音量為 20%
-            backgroundMusic.play().catch(e => {
-                console.log("瀏覽器阻擋了初始自動播放。等待使用者點擊...");
-            });
+            backgroundMusic.volume = 0.2;
+            backgroundMusic.play().catch((e) => console.log('BGM play blocked:', e));
         }
-        // 確保答題音效音量為 100%
-        if (correctSound) correctSound.volume = 1.0;
-        if (incorrectSound) incorrectSound.volume = 1.0;
-        if (gameStartSound) gameStartSound.volume = 1.0;
-    }
-    startInitialMusic(); // 載入時就嘗試播放
+    }, { once: true });
 
     // --- 輔助函數 ---
 
@@ -166,11 +177,20 @@ document.addEventListener('DOMContentLoaded', () => {
         // 清空舊選項並生成新選項
         optionsContainer.innerHTML = '';
         question.options.forEach(option => {
+            const optText = (typeof option === 'string') ? option : (option.text ?? option.id ?? '');
+            const optId   = (typeof option === 'string') ? option : (option.id   ?? option.text ?? '');
+
             const button = document.createElement('button');
-            button.textContent = option;
+            button.textContent = optText;
             button.className = 'p-4 rounded-xl font-bold text-lg option-btn w-full';
-            button.onclick = () => handleAnswer(option, button);
+            button.dataset.optId = optId; // 之後好比對正確答案
+            button.onclick = () => handleAnswer(optId, button);
             optionsContainer.appendChild(button);
+            // const button = document.createElement('button');
+            // button.textContent = option;
+            // button.className = 'p-4 rounded-xl font-bold text-lg option-btn w-full';
+            // button.onclick = () => handleAnswer(option, button);
+            // optionsContainer.appendChild(button);
         });
 
         startTimer(); // 啟動計時器

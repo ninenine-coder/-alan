@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'chat_page.dart';
+// import 'chat_page.dart';
 import 'register_page.dart';
 import 'welcome_page.dart';
 import 'user_service.dart';
@@ -39,12 +39,12 @@ class _LoginPageState extends State<LoginPage> {
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
       final selectedImage = prefs.getString('selected_style_image_$username');
-      
+
       // 如果沒有選擇的造型，返回經典捷米的圖片
       if (selectedImage == null || selectedImage.isEmpty) {
         return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 經典捷米圖片
       }
-      
+
       return selectedImage;
     } catch (e) {
       LoggerService.error('Error getting selected style image: $e');
@@ -52,84 +52,84 @@ class _LoginPageState extends State<LoginPage> {
     }
   }
 
-Future<void> _login() async {
-  final username = _usernameController.text.trim();
-  final password = _passwordController.text.trim();
+  Future<void> _login() async {
+    final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
 
-  if (username.isEmpty || password.isEmpty) {
-    _showErrorDialog('請輸入用戶名與密碼');
-    return;
-  }
-
-    if (!mounted) return;
-
-  setState(() {
-    _isLoading = true;
-  });
-
-  // 在異步操作前保存 Navigator
-  final navigator = Navigator.of(context);
-
-  try {
-    // 使用用戶名進行登入
-    final userData = await UserService.loginUserWithUsername(
-      username: username,
-      password: password,
-    );
-
-    if (userData == null) {
-      _showErrorDialog('用戶名或密碼錯誤');
+    if (username.isEmpty || password.isEmpty) {
+      _showErrorDialog('請輸入用戶名與密碼');
       return;
     }
-    
-    // 登入成功！
-    
+
     if (!mounted) return;
 
-    // 載入所有用戶數據
+    setState(() {
+      _isLoading = true;
+    });
+
+    // 在異步操作前保存 Navigator
+    final navigator = Navigator.of(context);
+
     try {
-      LoggerService.info('開始載入用戶數據');
-      await DataService.loadAllDataFromFirestore();
-      LoggerService.info('用戶數據載入完成');
+      // 使用用戶名進行登入
+      final userData = await UserService.loginUserWithUsername(
+        username: username,
+        password: password,
+      );
+
+      if (userData == null) {
+        _showErrorDialog('用戶名或密碼錯誤');
+        return;
+      }
+
+      // 登入成功！
+
+      if (!mounted) return;
+
+      // 載入所有用戶數據
+      try {
+        LoggerService.info('開始載入用戶數據');
+        await DataService.loadAllDataFromFirestore();
+        LoggerService.info('用戶數據載入完成');
+      } catch (e) {
+        LoggerService.error('載入用戶數據時發生錯誤: $e');
+      }
+
+      // 記錄登入時間（用於經驗值計算）
+      try {
+        await ExperienceService.recordLoginTime();
+        LoggerService.info('登入時間已記錄');
+      } catch (e) {
+        LoggerService.error('記錄登入時間時發生錯誤: $e');
+      }
+
+      // 檢查是否為首次登入
+      final loginCount = userData['loginCount'] ?? 0;
+      final isFirstLogin = loginCount <= 1;
+
+      if (mounted) {
+        if (isFirstLogin) {
+          navigator.pushReplacement(
+            MaterialPageRoute(builder: (context) => const WelcomePage()),
+          );
+        } else {
+          navigator.pushReplacementNamed('/chat');
+        }
+      }
     } catch (e) {
-      LoggerService.error('載入用戶數據時發生錯誤: $e');
-    }
-
-    // 記錄登入時間（用於經驗值計算）
-    try {
-      await ExperienceService.recordLoginTime();
-      LoggerService.info('登入時間已記錄');
-    } catch (e) {
-      LoggerService.error('記錄登入時間時發生錯誤: $e');
-    }
-
-    // 檢查是否為首次登入
-    final loginCount = userData['loginCount'] ?? 0;
-    final isFirstLogin = loginCount <= 1;
-
-    if (mounted) {
-      if (isFirstLogin) {
-        navigator.pushReplacement(
-          MaterialPageRoute(builder: (context) => const WelcomePage()),
-        );
-      } else {
-        navigator.pushReplacementNamed('/chat');
+      _showErrorDialog('登入失敗，請稍後再試');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
-  } catch (e) {
-    _showErrorDialog('登入失敗，請稍後再試');
-  } finally {
-    if (mounted) {
-      setState(() {
-        _isLoading = false;
-      });
-    }
   }
-}
 
   void _showErrorDialog(String message) {
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -139,7 +139,7 @@ Future<void> _login() async {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('確定'),
-          )
+          ),
         ],
       ),
     );
@@ -191,7 +191,7 @@ Future<void> _login() async {
 
       final success = await UserService.resetPassword(email);
       if (!mounted) return;
-      
+
       if (success) {
         showDialog(
           context: context,
@@ -202,7 +202,7 @@ Future<void> _login() async {
               TextButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('確定'),
-              )
+              ),
             ],
           ),
         );
@@ -282,7 +282,7 @@ Future<void> _login() async {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // 標題
                   const Text(
                     '歡迎回來',
@@ -295,10 +295,7 @@ Future<void> _login() async {
                   const SizedBox(height: 8),
                   Text(
                     '請登入您的帳號',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: Colors.grey.shade600,
-                    ),
+                    style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                   ),
                   const SizedBox(height: 32),
 
@@ -328,7 +325,9 @@ Future<void> _login() async {
                       prefixIcon: const Icon(Icons.lock),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                          _obscurePassword
+                              ? Icons.visibility_off
+                              : Icons.visibility,
                         ),
                         onPressed: () {
                           setState(() {
@@ -352,9 +351,7 @@ Future<void> _login() async {
                       onPressed: _forgotPassword,
                       child: Text(
                         '忘記密碼？',
-                        style: TextStyle(
-                          color: Colors.blue.shade600,
-                        ),
+                        style: TextStyle(color: Colors.blue.shade600),
                       ),
                     ),
                   ),
@@ -380,7 +377,9 @@ Future<void> _login() async {
                               height: 20,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                valueColor: AlwaysStoppedAnimation<Color>(
+                                  Colors.white,
+                                ),
                               ),
                             )
                           : const Text(
@@ -400,9 +399,7 @@ Future<void> _login() async {
                     children: [
                       Text(
                         '還沒有帳號？',
-                        style: TextStyle(
-                          color: Colors.grey.shade600,
-                        ),
+                        style: TextStyle(color: Colors.grey.shade600),
                       ),
                       TextButton(
                         onPressed: _goToRegister,

@@ -239,7 +239,7 @@
                 animation-duration: 10s; /* 手機上火車跑快一點 */
             }
             .train-animation-container {
-                height: 80px; /* 手機上容器高度也小一點 */
+                height: 100px; /* 手機上容器高度也小一點 */
             }
         }
 
@@ -263,16 +263,17 @@
         }
     </style>
     <!-- 音效預載 -->
-    <audio id="background-music" loop preload="auto" volume="0.3" autoplay>
-        <!-- 請將 src 替換為您的音樂檔案的公開 URL，或將檔案放在與 index.html 相同的資料夾並使用相對路徑 -->
-        <source src="捷運進站音樂 - 小禾 (youtube).mp3" type="audio/mpeg">
-        您的瀏覽器不支援音訊元素。
-    </audio>
     <audio id="game-start-sound" src="https://actions.google.com/sounds/v1/ui/swipe.ogg" preload="auto"></audio>
     <audio id="correct-sound" src="https://actions.google.com/sounds/v1/positive/success.ogg" preload="auto"></audio>
     <audio id="incorrect-sound" src="https://actions.google.com/sounds/v1/negative/failure.ogg" preload="auto"></audio>
 </head>
 <body class="min-h-screen flex items-center justify-center p-4">
+    <audio id="background-music" loop preload="auto" volume="0.3" autoplay>
+        <!-- 請將 src 替換為您的音樂檔案的公開 URL，或將檔案放在與 index.html 相同的資料夾並使用相對路徑 -->
+        <source src="./mrt_music.mp3" type="audio/mpeg">
+        您的瀏覽器不支援音訊元素。
+    </audio>
+
     <!-- 連擊顯示 (獨立於主容器外，確保層級最高) -->
     <div id="combo-display"></div>
 
@@ -280,7 +281,7 @@
         <!-- 捷運列車動畫容器 -->
         <div id="train-container" class="train-animation-container hidden">
             <!-- 將 SVG 替換為圖片 -->
-            <img src="傑米搭捷運.png" alt="捷運列車">
+            <img src="./jamie_take_mrt.png" alt="捷運列車">
         </div>
 
         <!-- 開始畫面 -->
@@ -353,6 +354,6 @@
     </div>
 
     <!-- 引入前端遊戲邏輯 -->
-    <script src="main.js"></script>
+    <script src="./main.js" defer></script>
 </body>
 </html>

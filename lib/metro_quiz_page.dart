@@ -5,11 +5,8 @@ import 'dart:convert';
 
 class MetroQuizPage extends StatefulWidget {
   final String? htmlString;
-  
-  const MetroQuizPage({
-    super.key,
-    this.htmlString,
-  });
+
+  const MetroQuizPage({super.key, this.htmlString});
 
   @override
   State<MetroQuizPage> createState() => _MetroQuizPageState();
@@ -24,20 +21,25 @@ class _MetroQuizPageState extends State<MetroQuizPage> {
   void initState() {
     super.initState();
     _controller = _createWebViewController();
-    
+
     // 載入原始的 HTML 文件
     if (widget.htmlString != null && widget.htmlString!.isNotEmpty) {
-      LoggerService.info('使用預載入的 HTML 字串');
-      _controller.loadRequest(
-        Uri.dataFromString(
-          widget.htmlString!,
-          mimeType: 'text/html',
-          encoding: const Utf8Codec(),
-        ),
+      // LoggerService.info('使用預載入的 HTML 字串');
+      // _controller.loadRequest(
+      //   Uri.dataFromString(
+      //     widget.htmlString!,
+      //     mimeType: 'text/html',
+      //     encoding: const Utf8Codec(),
+      //   ),
+      // );
+      LoggerService.info('使用預載入的 HTML 字串 + baseUrl');
+      _controller.loadHtmlString(
+        widget.htmlString!,
+        baseUrl: 'file:///android_asset/flutter_assets/assets/mrt_knowledge/',
       );
     } else {
       LoggerService.info('載入資產 HTML 文件');
-      _controller.loadFlutterAsset('assets/捷運知識王/index.html');
+      _controller.loadFlutterAsset('assets/mrt_knowledge/index.html');
     }
   }
 
@@ -217,12 +219,15 @@ class _MetroQuizPageState extends State<MetroQuizPage> {
       
       console.log('Touch fix and API mock injection completed');
     ''';
-    
-    _controller.runJavaScript(jsCode).then((_) {
-      LoggerService.info('Touch fix and API mock injected successfully');
-    }).catchError((error) {
-      LoggerService.error('Failed to inject touch fix: $error');
-    });
+
+    _controller
+        .runJavaScript(jsCode)
+        .then((_) {
+          LoggerService.info('Touch fix and API mock injected successfully');
+        })
+        .catchError((error) {
+          LoggerService.error('Failed to inject touch fix: $error');
+        });
   }
 
   @override
@@ -231,10 +236,7 @@ class _MetroQuizPageState extends State<MetroQuizPage> {
       appBar: AppBar(
         title: const Text(
           '捷運知識王',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-          ),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.blue.shade600,
         foregroundColor: Colors.white,
@@ -251,37 +253,30 @@ class _MetroQuizPageState extends State<MetroQuizPage> {
       ),
       body: Stack(
         children: [
-                     // 使用 WebViewWidget 和 WebViewController
-           WebViewWidget(
-             controller: _controller,
-           ),
-                     if (_isLoading)
-             IgnorePointer(
-               ignoring: true, // 讓點擊穿透到 WebView
-               child: Container(
-                 color: Colors.white.withValues(alpha: 0.7), // 半透明
-                 child: const Center(
-                   child: Column(
-                     mainAxisAlignment: MainAxisAlignment.center,
-                     children: [
-                       CircularProgressIndicator(),
-                       SizedBox(height: 16),
-                       Text(
-                         '載入捷運知識王遊戲中...',
-                         style: TextStyle(
-                           fontSize: 16,
-                           color: Colors.grey,
-                         ),
-                       ),
-                     ],
-                   ),
-                 ),
-               ),
-             ),
+          // 使用 WebViewWidget 和 WebViewController
+          WebViewWidget(controller: _controller),
+          if (_isLoading)
+            IgnorePointer(
+              ignoring: true, // 讓點擊穿透到 WebView
+              child: Container(
+                color: Colors.white.withValues(alpha: 0.7), // 半透明
+                child: const Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      CircularProgressIndicator(),
+                      SizedBox(height: 16),
+                      Text(
+                        '載入捷運知識王遊戲中...',
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
-
-
 }
