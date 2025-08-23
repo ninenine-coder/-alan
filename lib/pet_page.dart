@@ -309,7 +309,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               final imageUrl = snapshot.data;
               if (imageUrl != null && imageUrl.isNotEmpty) {
                 return ClipOval(
-                  child: Container(
+                  child: SizedBox(
                     width: 40,
                     height: 40,
                     child: Image.network(
@@ -703,7 +703,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   Widget _buildBackpackSection() {
     return Column(
       children: [
-        // 隱形按鈕區域
+        // 背包標題按鈕
         GestureDetector(
           onTap: () {
             setState(() {
@@ -716,99 +716,146 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
             }
           },
           child: Container(
-            height: 20,
-            width: double.infinity,
-            color: Colors.transparent,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.white.withValues(alpha: 0.9),
+                  Colors.grey.shade50.withValues(alpha: 0.9),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, -2),
+                ),
+              ],
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.backpack,
+                  color: Colors.orange.shade600,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '我的背包',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.orange.shade600,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                AnimatedRotation(
+                  turns: _showBackpack ? 0.5 : 0.0,
+                  duration: const Duration(milliseconds: 300),
+                  child: Icon(
+                    Icons.keyboard_arrow_up,
+                    color: Colors.orange.shade600,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
 
         // 背包選單
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          height: _showBackpack ? 200 : 0,
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 300),
-            opacity: _showBackpack ? 1.0 : 0.0,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    Colors.white.withValues(alpha: 0.9),
-                    Colors.grey.shade50.withValues(alpha: 0.9),
-                  ],
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
+        AnimatedBuilder(
+          animation: _backpackAnimation,
+          builder: (context, child) {
+            return SizedBox(
+              height: 200 * _backpackAnimation.value,
+              child: Opacity(
+                opacity: _backpackAnimation.value,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.white.withValues(alpha: 0.9),
+                        Colors.grey.shade50.withValues(alpha: 0.9),
+                      ],
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 10,
+                        offset: const Offset(0, -2),
+                      ),
+                    ],
+                  ),
+                                     child: Column(
+                     children: [
+                       // 上排三個按鈕
+                       Expanded(
+                         child: Row(
+                           children: [
+                             Expanded(
+                               child: _buildBackpackCategory('造型', Icons.face, Colors.blue),
+                             ),
+                             const SizedBox(width: 8),
+                             Expanded(
+                               child: _buildBackpackCategory(
+                                 '特效',
+                                 Icons.auto_awesome,
+                                 Colors.purple,
+                               ),
+                             ),
+                             const SizedBox(width: 8),
+                             Expanded(
+                               child: _buildBackpackCategory(
+                                 '飼料',
+                                 Icons.restaurant,
+                                 Colors.green,
+                               ),
+                             ),
+                           ],
+                         ),
+                       ),
+                       const SizedBox(height: 8),
+                       // 下排兩個按鈕
+                       Expanded(
+                         child: Row(
+                           children: [
+                             Expanded(
+                               child: _buildBackpackCategory(
+                                 '頭像',
+                                 Icons.account_circle,
+                                 Colors.teal,
+                               ),
+                             ),
+                             const SizedBox(width: 8),
+                             Expanded(
+                               child: _buildBackpackCategory(
+                                 '主題桌布',
+                                 Icons.table_bar,
+                                 Colors.indigo,
+                               ),
+                             ),
+                             const SizedBox(width: 8),
+                             // 空的 Expanded 來保持對齊
+                             const Expanded(child: SizedBox()),
+                           ],
+                         ),
+                       ),
+                     ],
+                   ),
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.1),
-                    blurRadius: 10,
-                    offset: const Offset(0, -2),
-                  ),
-                ],
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // 標題
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.backpack,
-                        color: Colors.orange.shade600,
-                        size: 24,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '我的背包',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade600,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-
-                  // 背包分類網格
-                  GridView.count(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    crossAxisCount: 3,
-                    crossAxisSpacing: 12,
-                    mainAxisSpacing: 12,
-                    childAspectRatio: 0.8,
-                    children: [
-                      _buildBackpackCategory('造型', Icons.face, Colors.blue),
-                      _buildBackpackCategory(
-                        '特效',
-                        Icons.auto_awesome,
-                        Colors.purple,
-                      ),
-                      _buildBackpackCategory(
-                        '飼料',
-                        Icons.restaurant,
-                        Colors.green,
-                      ),
-                      _buildBackpackCategory(
-                        '頭像',
-                        Icons.account_circle,
-                        Colors.teal,
-                      ),
-                      _buildBackpackCategory(
-                        '主題桌布',
-                        Icons.table_bar,
-                        Colors.indigo,
-                      ),
-                      Container(), // 空的容器保持網格對齊
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
+            );
+          },
         ),
       ],
     );
@@ -843,16 +890,18 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, size: 32, color: color),
-            const SizedBox(height: 8),
+            Icon(icon, size: 24, color: color),
+            const SizedBox(height: 4),
             Text(
               title,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 10,
                 fontWeight: FontWeight.w500,
                 color: color,
               ),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),
@@ -1844,8 +1893,11 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               onPressed: () async {
                 final newName = nameController.text.trim();
                 if (newName.isNotEmpty) {
+                  final navigator = Navigator.of(context);
                   await _updatePetName(newName);
-                  Navigator.of(context).pop(newName); // 返回新名字給 chat_page
+                  if (mounted) {
+                    navigator.pop(newName); // 返回新名字給 chat_page
+                  }
                 }
               },
               style: ElevatedButton.styleFrom(
