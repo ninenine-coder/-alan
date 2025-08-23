@@ -250,6 +250,9 @@ class ExperienceService {
             }
           }
           
+          // 檢查並解鎖基於等級的頭像
+          await AvatarService().checkAndUnlockAvatarsByLevel();
+          
           // 觸發所有升級回調（這些回調會處理功能解鎖等）
           for (final callback in _levelUpCallbacks) {
             try {
@@ -258,9 +261,6 @@ class ExperienceService {
               LoggerService.error('Error in level up callback: $e');
             }
           }
-          
-          // 檢查並解鎖基於等級的頭像
-          await AvatarService.checkAndUnlockAvatarsByLevel();
         }
       } else {
         LoggerService.error('Failed to sync experience to Firebase');

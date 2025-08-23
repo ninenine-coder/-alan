@@ -10,6 +10,7 @@ import 'feature_unlock_service.dart';
 import 'theme_background_service.dart';
 import 'theme_background_widget.dart';
 import 'unified_user_data_service.dart';
+import 'avatar_service.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -33,12 +34,19 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   String? _selectedEffectItem; // 選中的特效項目
   String? _selectedThemeItem; // 選中的主題桌布項目
   String? _selectedFoodItem; // 選中的飼料項目
+  
+  // 頭像服務監聽器
+  late AvatarService _avatarService;
 
   @override
   void initState() {
     super.initState();
     petName = widget.initialPetName;
     _loadPetName();
+
+    // 初始化頭像服務監聽器
+    _avatarService = AvatarService();
+    _avatarService.addListener(_onAvatarDataChanged);
 
     // 初始化返回鍵動畫
     _backButtonController = AnimationController(
@@ -199,8 +207,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    // 移除頭像服務監聽器
+    _avatarService.removeListener(_onAvatarDataChanged);
+    
+    // 釋放動畫控制器
     _backButtonController.dispose();
     _backpackAnimationController.dispose();
+    
     super.dispose();
   }
 
@@ -1359,9 +1372,19 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     String category,
   ) async {
     try {
-      // 如果是主題桌布分類，使用主題背景服務
+      // 如果是主題桌布分類，使用統一用戶資料服務
       if (category == '主題桌布') {
-        return await _getOwnedThemeBackgrounds();
+        LoggerService.info('正在獲取主題桌布類別的已擁有商品...');
+        final ownedItems = await UnifiedUserDataService.getOwnedProductsByCategory('主題桌鋪');
+        
+        LoggerService.info('獲取到 ${ownedItems.length} 個已擁有的主題桌布商品');
+        
+        // 調試：打印每個商品的詳細信息
+        for (final item in ownedItems) {
+          LoggerService.info('主題桌布商品: ${item['name']} (ID: ${item['id']}), 圖片: ${item['圖片']}, 狀態: ${item['status']}');
+        }
+        
+        return ownedItems;
       }
       
       // 如果是頭像分類，使用統一用戶資料服務
@@ -1370,13 +1393,14 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
       }
 
       // 使用統一用戶資料服務獲取已擁有的商品
+      LoggerService.info('正在獲取 $category 類別的已擁有商品...');
       final ownedItems = await UnifiedUserDataService.getOwnedProductsByCategory(category);
       
       LoggerService.info('獲取到 ${ownedItems.length} 個已擁有的 $category 商品');
       
       // 調試：打印每個商品的詳細信息
       for (final item in ownedItems) {
-        LoggerService.info('商品: ${item['name']}, 圖片: ${item['圖片']}, 狀態: ${item['status']}');
+        LoggerService.info('商品: ${item['name']} (ID: ${item['id']}), 圖片: ${item['圖片']}, 狀態: ${item['status']}');
       }
       
       return ownedItems;
@@ -1448,9 +1472,22 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     String category,
   ) async {
     try {
-      // 如果是主題桌布分類，使用主題背景服務
+      // 如果是主題桌布分類，使用統一用戶資料服務
       if (category == '主題桌布') {
-        return await _getAllThemeBackgrounds();
+        LoggerService.info('正在獲取主題桌布類別的所有商品...');
+        final allItems = await UnifiedUserDataService.getAllProductsByCategory('主題桌鋪');
+        
+        // 排序：已擁有的商品在前，未擁有的商品在後
+        allItems.sort((a, b) {
+          final aOwned = a['status'] == '已擁有';
+          final bOwned = b['status'] == '已擁有';
+          if (aOwned && !bOwned) return -1;
+          if (!aOwned && bOwned) return 1;
+          return 0;
+        });
+
+        LoggerService.info('獲取到 ${allItems.length} 個主題桌布商品');
+        return allItems;
       }
       
       // 如果是頭像分類，使用統一用戶資料服務
@@ -1914,6 +1951,16 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           ),
         );
       }
+    }
+  }
+  
+  /// 頭像數據變化回調
+  void _onAvatarDataChanged() {
+    if (mounted) {
+      setState(() {
+        // 強制重建UI以顯示新的頭像
+        LoggerService.info('頭像數據已更新，重建UI');
+      });
     }
   }
 }

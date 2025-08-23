@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'experience_service.dart';
 import 'logger_service.dart';
 
-class AvatarService {
+class AvatarService extends ChangeNotifier {
   // 等級解鎖頭像配置
   static const Map<int, String> _levelAvatarUnlocks = {
     1: 'avatar3',   // 等級1時獲得頭像3
@@ -12,6 +13,11 @@ class AvatarService {
     21: 'avatar5',  // 等級21時獲得頭像5
     31: 'avatar6',  // 等級31時獲得頭像6
   };
+  
+  // 單例模式
+  static final AvatarService _instance = AvatarService._internal();
+  factory AvatarService() => _instance;
+  AvatarService._internal();
 
   // 頭像顯示名稱映射
   static const Map<String, String> _avatarDisplayNames = {
@@ -32,7 +38,7 @@ class AvatarService {
   };
 
   /// 首次登入時初始化用戶頭像資料
-  static Future<void> initializeUserAvatars() async {
+  Future<void> initializeUserAvatars() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -84,7 +90,7 @@ class AvatarService {
   }
 
   /// 檢查並解鎖基於等級的頭像
-  static Future<void> checkAndUnlockAvatarsByLevel() async {
+  Future<void> checkAndUnlockAvatarsByLevel() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return;
@@ -131,6 +137,10 @@ class AvatarService {
             .update({'avatars': updatedAvatars});
 
         LoggerService.info('頭像解鎖更新完成: $updatedAvatars');
+        
+        // 通知UI更新
+        notifyListeners();
+        LoggerService.info('已通知UI更新頭像列表');
       }
     } catch (e) {
       LoggerService.error('檢查頭像解鎖失敗: $e');
@@ -138,7 +148,7 @@ class AvatarService {
   }
 
   /// 獲取用戶已擁有的頭像
-  static Future<List<Map<String, dynamic>>> getOwnedAvatars() async {
+  Future<List<Map<String, dynamic>>> getOwnedAvatars() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return [];
@@ -181,7 +191,7 @@ class AvatarService {
   }
 
   /// 獲取所有頭像（包括未擁有的）
-  static Future<List<Map<String, dynamic>>> getAllAvatars() async {
+  Future<List<Map<String, dynamic>>> getAllAvatars() async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return [];
@@ -247,7 +257,7 @@ class AvatarService {
   }
 
   /// 檢查特定頭像是否已解鎖
-  static Future<bool> isAvatarUnlocked(String avatarId) async {
+  Future<bool> isAvatarUnlocked(String avatarId) async {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;

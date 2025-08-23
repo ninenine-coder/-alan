@@ -25,17 +25,22 @@ class _ThemeBackgroundWidgetState extends State<ThemeBackgroundWidget> {
   @override
   void initState() {
     super.initState();
-    _loadBackgroundImage();
+    LoggerService.debug('ThemeBackgroundWidget 初始化');
+    _loadBackgroundImageOptimized();
   }
 
   Future<void> _loadBackgroundImage() async {
     try {
+      LoggerService.debug('開始載入背景圖片');
       final imageUrl = await ThemeBackgroundService.getSelectedThemeUrl();
+      LoggerService.debug('獲取到背景URL: $imageUrl');
+      
       if (mounted) {
         setState(() {
           _backgroundImageUrl = imageUrl;
           _isLoading = false;
         });
+        LoggerService.debug('背景圖片狀態已更新: $_backgroundImageUrl');
       }
       LoggerService.debug('主題背景已載入: $_backgroundImageUrl');
     } catch (e) {
@@ -48,8 +53,43 @@ class _ThemeBackgroundWidgetState extends State<ThemeBackgroundWidget> {
     }
   }
 
+  /// 優化的背景載入方法
+  Future<void> _loadBackgroundImageOptimized() async {
+    try {
+      LoggerService.debug('開始優化載入背景圖片');
+      
+      // 設置載入狀態
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+
+      final imageUrl = await ThemeBackgroundService.getSelectedThemeUrl();
+      LoggerService.debug('優化載入獲取到背景URL: $imageUrl');
+      
+      if (mounted) {
+        setState(() {
+          _backgroundImageUrl = imageUrl;
+          _isLoading = false;
+        });
+        LoggerService.debug('優化載入背景圖片狀態已更新: $_backgroundImageUrl');
+      }
+      
+      LoggerService.debug('主題背景已優化載入: $_backgroundImageUrl');
+    } catch (e) {
+      LoggerService.error('優化載入主題背景失敗: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
   /// 重新載入背景圖片（用於主題更換時）
   Future<void> reloadBackground() async {
+    LoggerService.debug('重新載入背景圖片');
     setState(() {
       _isLoading = true;
     });
@@ -58,7 +98,10 @@ class _ThemeBackgroundWidgetState extends State<ThemeBackgroundWidget> {
 
   @override
   Widget build(BuildContext context) {
+    LoggerService.debug('ThemeBackgroundWidget build - isLoading: $_isLoading, backgroundUrl: $_backgroundImageUrl');
+    
     if (_isLoading) {
+      LoggerService.debug('顯示載入狀態');
       return widget.child; // 載入期間先顯示原始內容
     }
 
@@ -91,16 +134,36 @@ class _ThemeBackgroundWidgetState extends State<ThemeBackgroundWidget> {
   }
 
   Widget _buildBackgroundImage() {
+    LoggerService.debug('構建背景圖片: $_backgroundImageUrl');
     return Image.network(
       _backgroundImageUrl,
       fit: BoxFit.cover,
       width: double.infinity,
       height: double.infinity,
+      // 添加快取和預載入機制
+      cacheWidth: MediaQuery.of(context).size.width.toInt(),
+      cacheHeight: MediaQuery.of(context).size.height.toInt(),
       loadingBuilder: (context, child, loadingProgress) {
         if (loadingProgress == null) {
+          LoggerService.debug('背景圖片載入完成');
           return child;
         }
-        return _buildDefaultBackground(); // 載入期間顯示預設背景
+        LoggerService.debug('背景圖片載入中: ${loadingProgress.cumulativeBytesLoaded}/${loadingProgress.expectedTotalBytes}');
+        // 顯示載入進度
+        return Stack(
+          children: [
+            _buildDefaultBackground(),
+            Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                          loadingProgress.expectedTotalBytes!
+                    : null,
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue.shade600),
+              ),
+            ),
+          ],
+        );
       },
       errorBuilder: (context, error, stackTrace) {
         LoggerService.warning('背景圖片載入失敗: $error');
@@ -110,6 +173,7 @@ class _ThemeBackgroundWidgetState extends State<ThemeBackgroundWidget> {
   }
 
   Widget _buildDefaultBackground() {
+    LoggerService.debug('構建預設背景');
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -138,6 +202,7 @@ class ThemeBackgroundNotifier extends ChangeNotifier {
 
   /// 通知所有監聽器背景已更換
   void notifyBackgroundChanged() {
+    LoggerService.debug('通知背景變化');
     notifyListeners();
   }
 }
@@ -161,10 +226,12 @@ class ThemeBackgroundListener extends StatefulWidget {
 
 class _ThemeBackgroundListenerState extends State<ThemeBackgroundListener> {
   final GlobalKey<_ThemeBackgroundWidgetState> _backgroundKey = GlobalKey();
+  String _lastBackgroundUrl = '';
 
   @override
   void initState() {
     super.initState();
+    LoggerService.debug('ThemeBackgroundListener 初始化');
     // 監聽背景變化通知
     ThemeBackgroundNotifier().addListener(_onBackgroundChanged);
   }
@@ -175,13 +242,29 @@ class _ThemeBackgroundListenerState extends State<ThemeBackgroundListener> {
     super.dispose();
   }
 
-  void _onBackgroundChanged() {
-    // 當背景變化時，重新載入背景
-    _backgroundKey.currentState?.reloadBackground();
+  void _onBackgroundChanged() async {
+    LoggerService.debug('收到背景變化通知');
+    // 檢查背景是否真的改變了，避免不必要的重複載入
+    try {
+      final newBackgroundUrl = await ThemeBackgroundService.getSelectedThemeUrl();
+      LoggerService.debug('檢查背景變化 - 舊: $_lastBackgroundUrl, 新: $newBackgroundUrl');
+      
+      if (newBackgroundUrl != _lastBackgroundUrl) {
+        _lastBackgroundUrl = newBackgroundUrl;
+        // 當背景變化時，重新載入背景
+        _backgroundKey.currentState?.reloadBackground();
+        LoggerService.debug('背景已更新: $newBackgroundUrl');
+      } else {
+        LoggerService.debug('背景未變化，跳過重載');
+      }
+    } catch (e) {
+      LoggerService.error('檢查背景變化失敗: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    LoggerService.debug('ThemeBackgroundListener build');
     return ThemeBackgroundWidget(
       key: _backgroundKey,
       overlayColor: widget.overlayColor,

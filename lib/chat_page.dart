@@ -248,7 +248,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       await _initializeFeatureUnlockStatus();
       
       // 檢查並解鎖基於等級的頭像
-      await AvatarService.checkAndUnlockAvatarsByLevel();
+              await AvatarService().checkAndUnlockAvatarsByLevel();
     }
   }
 

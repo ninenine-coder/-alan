@@ -72,7 +72,7 @@ class UnifiedUserDataService {
     final ownedProducts = <String, bool>{};
     
     // 商城類別
-    final categories = ['造型', '特效', '主題桌布', '飼料'];
+    final categories = ['造型', '特效', '主題桌鋪', '飼料'];
     
     for (final category in categories) {
       try {
@@ -197,6 +197,8 @@ class UnifiedUserDataService {
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) return false;
 
+      LoggerService.info('正在更新用戶商品狀態: 用戶ID=${user.uid}, 商品ID=$productId');
+      
       await FirebaseFirestore.instance
           .collection(_usersCollection)
           .doc(user.uid)
@@ -267,7 +269,7 @@ class UnifiedUserDataService {
       final ownedList = <Map<String, dynamic>>[];
       
       // 商城類別
-      final categories = ['造型', '特效', '主題桌布', '飼料'];
+      final categories = ['造型', '特效', '主題桌鋪', '飼料'];
       
       for (final category in categories) {
         try {
@@ -322,22 +324,36 @@ class UnifiedUserDataService {
 
       final unlockedList = <Map<String, dynamic>>[];
       
-             // 從 Firebase 獲取頭像資料
-       try {
-         final avatarSnapshot = await FirebaseFirestore.instance
-             .collection('頭像')
-             .get();
-         
-         LoggerService.info('從 Firebase 獲取到 ${avatarSnapshot.docs.length} 個頭像');
-         LoggerService.info('用戶頭像狀態: $avatars');
-         
-         for (final doc in avatarSnapshot.docs) {
-           final avatarId = doc.id;
-           final isOwned = avatars[avatarId] ?? false;
-           LoggerService.info('檢查頭像 $avatarId: 是否擁有 = $isOwned');
+      // 獲取當前用戶等級
+      final experienceData = await ExperienceService.getCurrentExperience();
+      final currentLevel = experienceData['level'] as int;
+      
+      // 從 Firebase 獲取頭像資料
+      try {
+        final avatarSnapshot = await FirebaseFirestore.instance
+            .collection('頭像')
+            .get();
+        
+        LoggerService.info('從 Firebase 獲取到 ${avatarSnapshot.docs.length} 個頭像');
+        LoggerService.info('用戶頭像狀態: $avatars');
+        
+        for (final doc in avatarSnapshot.docs) {
+          final avatarId = doc.id;
+          final data = doc.data();
+                    final requiredLevel = await _getAvatarUnlockLevel(avatarId);
+          final canUnlock = currentLevel >= requiredLevel;
+           
+           // 檢查是否擁有（包括即時解鎖）
+           bool isOwned = avatars[avatarId] ?? false;
+           if (canUnlock && !isOwned) {
+             // 如果達到等級但尚未解鎖，立即更新狀態
+             isOwned = true;
+             LoggerService.info('即時解鎖頭像: ${data['name']} (等級 $currentLevel >= $requiredLevel)');
+           }
+           
+           LoggerService.info('檢查頭像 $avatarId: 是否擁有 = $isOwned, 等級要求 = $requiredLevel, 當前等級 = $currentLevel');
            
            if (isOwned) {
-             final data = doc.data();
              LoggerService.info('添加已擁有的頭像: ${data['name']} (ID: $avatarId)');
              unlockedList.add({
                'id': avatarId,
@@ -347,7 +363,7 @@ class UnifiedUserDataService {
                'category': '頭像',
                'status': '已擁有',
                'description': data['description'] ?? '',
-               'unlockLevel': await _getAvatarUnlockLevel(avatarId),
+               'unlockLevel': requiredLevel,
              });
            }
          }
@@ -809,9 +825,16 @@ class UnifiedUserDataService {
         for (final doc in avatarSnapshot.docs) {
           final avatarId = doc.id;
           final data = doc.data();
-          final isUnlocked = avatars[avatarId] ?? false;
           final requiredLevel = await _getAvatarUnlockLevel(avatarId);
           final canUnlock = currentLevel >= requiredLevel;
+          
+          // 檢查是否應該解鎖（基於當前等級）
+          bool isUnlocked = avatars[avatarId] ?? false;
+          if (canUnlock && !isUnlocked) {
+            // 如果達到等級但尚未解鎖，立即更新狀態
+            isUnlocked = true;
+            LoggerService.info('即時解鎖頭像: ${data['name']} (等級 $currentLevel >= $requiredLevel)');
+          }
           
           allList.add({
             'id': avatarId,

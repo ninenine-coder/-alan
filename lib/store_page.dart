@@ -457,9 +457,12 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   Widget buildCategoryTab(String category) {
     // 如果是主題桌鋪分類，直接從 Firebase 讀取
     if (category == '主題桌鋪') {
+      LoggerService.info('開始載入主題桌鋪分類');
       return StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('主題桌鋪').snapshots(),
         builder: (context, snapshot) {
+          LoggerService.info('主題桌鋪 StreamBuilder 狀態: hasData=${snapshot.hasData}, hasError=${snapshot.hasError}, error=${snapshot.error}');
+          
           if (snapshot.hasError) {
             LoggerService.error('載入主題桌鋪資料時發生錯誤: ${snapshot.error}');
             return Center(
@@ -490,6 +493,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           }
 
           if (!snapshot.hasData) {
+            LoggerService.info('主題桌鋪資料尚未載入完成');
             return const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -503,8 +507,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           }
 
           final items = snapshot.data!.docs;
+          LoggerService.info('主題桌鋪載入完成，共 ${items.length} 個項目');
 
           if (items.isEmpty) {
+            LoggerService.warning('主題桌鋪集合為空');
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -524,6 +530,26 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                     '類別: $category',
                     style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
                   ),
+                  const SizedBox(height: 16),
+                  ElevatedButton(
+                    onPressed: () async {
+                      // 嘗試手動測試Firebase連接
+                      try {
+                        LoggerService.info('手動測試Firebase連接...');
+                        final testSnapshot = await FirebaseFirestore.instance
+                            .collection('主題桌鋪')
+                            .get();
+                        LoggerService.info('測試結果: ${testSnapshot.docs.length} 個文檔');
+                        for (final doc in testSnapshot.docs) {
+                          LoggerService.info('文檔ID: ${doc.id}, 數據: ${doc.data()}');
+                        }
+                        setState(() {}); // 重新構建
+                      } catch (e) {
+                        LoggerService.error('手動測試失敗: $e');
+                      }
+                    },
+                    child: const Text('測試連接'),
+                  ),
                 ],
               ),
             );
@@ -539,13 +565,16 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               mainAxisSpacing: 16,
             ),
             itemBuilder: (context, index) {
+              final item = items[index];
+              LoggerService.debug('構建主題桌鋪項目 $index: ${item.data()}');
+              
               return TweenAnimationBuilder<double>(
                 duration: Duration(milliseconds: 300 + (index * 50)),
                 tween: Tween(begin: 0.0, end: 1.0),
                 builder: (context, value, child) {
                   return Transform.scale(
                     scale: value,
-                    child: buildItem(items[index], category: category),
+                    child: buildItem(item, category: category),
                   );
                 },
               );
@@ -555,6 +584,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       );
     }
 
+    // 其他分類的處理保持不變
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection(category).snapshots(),
       builder: (context, snapshot) {
@@ -604,7 +634,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.shopping_bag_outlined,
+                  Icons.category_outlined,
                   size: 64,
                   color: Colors.grey.shade400,
                 ),
@@ -729,6 +759,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   /// 應用主題
   Future<void> _applyTheme(Map<String, dynamic> product) async {
     try {
+      LoggerService.info('開始應用主題: ${product['name']}');
+      
       final themeId = product['id'] ?? '';
       final imageUrl = product['圖片'] ?? product['imageUrl'] ?? '';
       final themeName = product['name'] ?? '未命名主題';
@@ -740,26 +772,41 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       );
 
       if (success && mounted) {
+        LoggerService.info('主題設置成功，開始通知背景更新');
+        
         // 通知背景更新
         ThemeBackgroundNotifier().notifyBackgroundChanged();
+        
+        // 延遲一點時間讓背景更新生效，然後強制重建頁面
+        await Future.delayed(const Duration(milliseconds: 300));
+        
+        if (mounted) {
+          setState(() {
+            // 強制重建頁面以確保所有內容正確顯示
+          });
+          LoggerService.info('商城頁面已重建');
+        }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                const SizedBox(width: 8),
-                Expanded(child: Text('主題「$themeName」已成功應用到所有頁面！')),
-              ],
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text('主題「$themeName」已成功應用到所有頁面！')),
+                ],
+              ),
+              backgroundColor: Colors.green.shade600,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            backgroundColor: Colors.green.shade600,
-            behavior: SnackBarBehavior.floating,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
-        );
+          );
+        }
       } else if (mounted) {
+        LoggerService.error('主題設置失敗');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Row(
@@ -1198,128 +1245,126 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: ThemeBackgroundListener(
-        overlayColor: Colors.white,
-        overlayOpacity: 0.3,
-        child: SafeArea(
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 12,
-                ),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [Colors.blue.shade600, Colors.blue.shade800],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 2),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => Navigator.pop(context),
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(12),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Icon(
-                              Icons.arrow_back_ios,
-                              size: 18,
-                              color: Colors.blue[600],
-                            ),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        const Expanded(
-                          child: Text(
-                            '商城',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                        CoinDisplay(key: _coinDisplayKey),
-                        const SizedBox(width: 12),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                      child: TabBar(
-                        controller: _tabController,
-                        isScrollable: true,
-                        indicator: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(25),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 4,
-                              offset: const Offset(0, 2),
-                            ),
-                          ],
-                        ),
-                        labelColor: Colors.blue.shade800,
-                        unselectedLabelColor: Colors.white,
-                        labelStyle: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                        tabs: categories
-                            .map(
-                              (c) => Tab(
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(categoryIcons[c], size: 16),
-                                    const SizedBox(width: 4),
-                                    Text(c),
-                                  ],
-                                ),
-                              ),
-                            )
-                            .toList(),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: categories
-                      .map((category) => buildCategoryTab(category))
-                      .toList(),
-                ),
-              ),
-            ],
+      body: Stack(
+        children: [
+          // 背景圖層 - 確保在最底層
+          Positioned.fill(
+            child: ThemeBackgroundListener(
+              overlayColor: Colors.white,
+              overlayOpacity: 0.2, // 降低遮罩透明度，讓背景更明顯
+              child: Container(), // 空容器，只用於顯示背景
+            ),
           ),
-        ),
+          // 內容層 - 在背景之上
+          SafeArea(
+            child: Column(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          GestureDetector(
+                            onTap: () {
+                              LoggerService.info('從商城頁面返回');
+                              Navigator.pop(context);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                borderRadius: BorderRadius.circular(12),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.1),
+                                    blurRadius: 4,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                Icons.arrow_back_ios,
+                                size: 18,
+                                color: Colors.blue[600],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Text(
+                              '商城',
+                              style: TextStyle(
+                                color: Colors.black87,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+                          CoinDisplay(key: _coinDisplayKey),
+                          const SizedBox(width: 12),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                        child: TabBar(
+                          controller: _tabController,
+                          isScrollable: true,
+                          indicator: BoxDecoration(
+                            color: Colors.blue.shade600,
+                            borderRadius: BorderRadius.circular(25),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          labelColor: Colors.white,
+                          unselectedLabelColor: Colors.black87,
+                          labelStyle: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          tabs: categories
+                              .map(
+                                (c) => Tab(
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(categoryIcons[c], size: 16),
+                                      const SizedBox(width: 4),
+                                      Text(c),
+                                    ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    controller: _tabController,
+                    children: categories
+                        .map((category) => buildCategoryTab(category))
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
