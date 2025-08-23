@@ -7,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:image_picker/image_picker.dart';
 import 'chat_message.dart';
 import 'chat_service.dart';
-import 'pet_page.dart';
+import 'pet_page.dart' as pet;
 import 'store_page.dart';
 import 'challenge_page.dart';
 import 'medal_page.dart';
@@ -23,6 +23,8 @@ import 'feature_unlock_service.dart';
 import 'welcome_coin_service.dart';
 
 import 'theme_background_widget.dart';
+import 'api_service.dart';
+import 'api_models.dart' as api;
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -36,24 +38,23 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   final TextEditingController _controller = TextEditingController();
   final GlobalKey<AnimatedListState> _listKey = GlobalKey<AnimatedListState>();
   final ScrollController _scrollController = ScrollController();
+  final ApiService _api = ApiService();
   bool _isTyping = false;
   bool _showMenu = false;
 
   String _aiName = '捷米';
-  final GlobalKey<CoinDisplayState> _coinDisplayKey = GlobalKey<CoinDisplayState>();
-  final GlobalKey<ExperienceDisplayState> _experienceDisplayKey = GlobalKey<ExperienceDisplayState>();
+  final GlobalKey<CoinDisplayState> _coinDisplayKey =
+      GlobalKey<CoinDisplayState>();
+  final GlobalKey<ExperienceDisplayState> _experienceDisplayKey =
+      GlobalKey<ExperienceDisplayState>();
   bool _showWelcomeAnimation = false;
   Map<String, dynamic>? _currentUser;
-  
+
   // 預載入的 HTML 內容
   String? _metroQuizHtml;
-  
+
   // 功能解鎖狀態
   Map<String, bool> _featureUnlockStatus = {};
-  
-
-  
-
 
   // 動畫控制器
   late AnimationController _typingAnimationController;
@@ -73,12 +74,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     _loadUserData();
 
     _preloadMetroQuizHtml(); // 預載入捷運知識王 HTML
-    
+
     // 註冊升級回調
     ExperienceService.addLevelUpCallback(_onLevelUp);
   }
-  
-
 
   /// 獲取選擇的造型圖片
   Future<String?> _getSelectedStyleImage() async {
@@ -89,12 +88,12 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
       final selectedImage = prefs.getString('selected_style_image_$username');
-      
+
       // 如果沒有選擇的造型，返回造型1的圖片
       if (selectedImage == null || selectedImage.isEmpty) {
         return 'https://i.postimg.cc/vmzwkwzg/image.jpg'; // 造型1圖片
       }
-      
+
       return selectedImage;
     } catch (e) {
       LoggerService.error('Error getting selected style image: $e');
@@ -111,7 +110,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
       final avatarImageUrl = prefs.getString('selected_avatar_image_$username');
-      
+
       LoggerService.debug('獲取頭像圖片: $avatarImageUrl, 用戶: $username');
       return avatarImageUrl;
     } catch (e) {
@@ -127,8 +126,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     });
     LoggerService.info('頭像顯示已刷新');
   }
-
-
 
   void _initializeAnimations() {
     _typingAnimationController = AnimationController(
@@ -149,7 +146,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       vsync: this,
     );
     _sendButtonAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
-      CurvedAnimation(parent: _sendButtonAnimationController, curve: Curves.easeInOut),
+      CurvedAnimation(
+        parent: _sendButtonAnimationController,
+        curve: Curves.easeInOut,
+      ),
     );
 
     _backgroundAnimationController = AnimationController(
@@ -157,7 +157,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       vsync: this,
     );
     _backgroundAnimation = Tween<double>(begin: 0.0, end: 2 * math.pi).animate(
-      CurvedAnimation(parent: _backgroundAnimationController, curve: Curves.linear),
+      CurvedAnimation(
+        parent: _backgroundAnimationController,
+        curve: Curves.linear,
+      ),
     );
 
     _backgroundAnimationController.repeat();
@@ -167,19 +170,19 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   void _onLevelUp(int newLevel) async {
     if (mounted) {
       LoggerService.info('聊天頁面收到升級事件: 等級 $newLevel');
-      
+
       // 更新功能解鎖狀態
       await FeatureUnlockService.updateUnlockStatusOnLevelUp(newLevel);
-      
+
       // 重新載入功能解鎖狀態
       final newUnlockStatus = await FeatureUnlockService.getUnlockStatus();
       setState(() {
         _featureUnlockStatus = newUnlockStatus;
       });
-      
+
       // 刷新金幣顯示
       _coinDisplayKey.currentState?.refreshCoins();
-      
+
       LoggerService.info('功能解鎖狀態已更新: $_featureUnlockStatus');
     }
   }
@@ -188,18 +191,21 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   void dispose() {
     // 移除升級回調
     ExperienceService.removeLevelUpCallback(_onLevelUp);
-    
+
     _typingAnimationController.dispose();
     _menuAnimationController.dispose();
     _sendButtonAnimationController.dispose();
     _backgroundAnimationController.dispose();
+    _api.dispose();
     super.dispose();
   }
 
   Future<void> _preloadMetroQuizHtml() async {
     try {
       LoggerService.info('開始預載入捷運知識王 HTML');
-      _metroQuizHtml = await rootBundle.loadString('assets/捷運知識王/index.html');
+      _metroQuizHtml = await rootBundle.loadString(
+        'assets/mrt_knowledge/index.html',
+      );
       LoggerService.info('捷運知識王 HTML 預載入完成');
     } catch (e) {
       LoggerService.error('預載入捷運知識王 HTML 失敗: $e');
@@ -210,20 +216,23 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   Future<void> _loadUserData() async {
     // 確保用戶資料已初始化
     await UserService.initializeUserData();
-    
+
     final userData = await UserService.getCurrentUserData();
     if (userData != null) {
       setState(() {
         _currentUser = userData;
       });
-      
+
       // 載入聊天紀錄
       await _loadMessages();
-      
+
       // 檢查是否應該顯示歡迎金幣動畫
-      final hasClaimedWelcomeCoin = await WelcomeCoinService.hasClaimedWelcomeCoin();
-      LoggerService.debug('User has claimed welcome coin: $hasClaimedWelcomeCoin');
-      
+      final hasClaimedWelcomeCoin =
+          await WelcomeCoinService.hasClaimedWelcomeCoin();
+      LoggerService.debug(
+        'User has claimed welcome coin: $hasClaimedWelcomeCoin',
+      );
+
       if (!hasClaimedWelcomeCoin) {
         LoggerService.info('Welcome coin not claimed, showing animation');
         await Future.delayed(const Duration(milliseconds: 2000));
@@ -233,7 +242,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           });
         }
       }
-      
+
       // 初始化功能解鎖狀態
       await _initializeFeatureUnlockStatus();
     }
@@ -242,7 +251,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   /// 初始化功能解鎖狀態
   Future<void> _initializeFeatureUnlockStatus() async {
     try {
-      final unlockStatus = await FeatureUnlockService.initializeFeatureUnlockStatus();
+      final unlockStatus =
+          await FeatureUnlockService.initializeFeatureUnlockStatus();
       setState(() {
         _featureUnlockStatus = unlockStatus;
       });
@@ -254,21 +264,21 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Future<void> _onWelcomeAnimationComplete() async {
     LoggerService.info('Animation complete callback called');
-    
+
     // 使用 WelcomeCoinService 來處理金幣領取
     final success = await WelcomeCoinService.claimWelcomeCoin();
-    
+
     if (success) {
       // 重新載入用戶數據以獲取最新的金幣數量
       final updatedUserData = await UserService.getCurrentUserData();
-      
+
       setState(() {
         _currentUser = updatedUserData;
         _showWelcomeAnimation = false;
       });
-      
+
       _coinDisplayKey.currentState?.refreshCoins();
-      
+
       if (mounted) {
         final coinAmount = WelcomeCoinService.getWelcomeCoinAmount();
         _showSuccessSnackBar('成功獲得 $coinAmount 金幣！');
@@ -284,10 +294,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    
+
     // 設置全局 context 用於升級動畫
     ExperienceService.setGlobalContext(context);
-    
+
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _coinDisplayKey.currentState?.refreshCoins();
     });
@@ -295,7 +305,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Future<void> _saveMessages() async {
     if (_currentUser == null) return;
-    
+
     final prefs = await SharedPreferences.getInstance();
     final username = _currentUser!['username'] ?? 'default';
     final messagesKey = 'chat_messages_$username';
@@ -305,16 +315,16 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Future<void> _loadMessages() async {
     if (_currentUser == null) return;
-    
+
     try {
       final prefs = await SharedPreferences.getInstance();
       final username = _currentUser!['username'] ?? 'default';
       final messagesKey = 'chat_messages_$username';
       final jsonMessages = prefs.getStringList(messagesKey) ?? [];
-      
+
       if (jsonMessages.isNotEmpty) {
         final loadedMessages = <ChatMessage>[];
-        
+
         for (final jsonMessage in jsonMessages) {
           try {
             final messageData = jsonDecode(jsonMessage) as Map<String, dynamic>;
@@ -324,23 +334,23 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             LoggerService.warning('Failed to parse message: $e');
           }
         }
-        
+
         if (mounted) {
           setState(() {
             _messages.clear();
             _messages.addAll(loadedMessages);
           });
-          
+
           // 更新 AnimatedList 的項目數量
           for (int i = 0; i < _messages.length; i++) {
             _listKey.currentState?.insertItem(i);
           }
-          
+
           // 滾動到底部
           if (_messages.isNotEmpty) {
             _scrollToBottom();
           }
-          
+
           LoggerService.info('Loaded ${_messages.length} chat messages');
         }
       } else {
@@ -370,7 +380,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
       try {
         // 檢查挑戰任務功能是否已解鎖
-        final isChallengeUnlocked = await FeatureUnlockService.isFeatureUnlocked('挑戰任務');
+        final isChallengeUnlocked =
+            await FeatureUnlockService.isFeatureUnlocked('挑戰任務');
         if (isChallengeUnlocked) {
           final messageReward = await ChallengeService.handleDailyMessage();
           if (messageReward) {
@@ -383,15 +394,36 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         }
       }
 
-      final response = await ChatService.sendMessage(text);
-      final aiMessage = ChatMessage(text: response, isUser: false, time: DateTime.now());
-      
+      // ★★★ 把目前對話轉成 API chat_history 格式
+      final history = _messages
+          .where((m) => m.imagePath == null && m.text.trim().isNotEmpty)
+          .map(
+            (m) => api.ChatMessage(
+              role: m.isUser ? 'user' : 'assistant',
+              content: m.text,
+            ),
+          )
+          .toList();
+
+      final req = api.ChatRequest(
+        message: text,
+        chatHistory: history,
+        language: 'zh-Hant',
+      );
+
+      final apiResp = await _api.sendMessage(req);
+      final aiMessage = ChatMessage(
+        text: apiResp.response,
+        isUser: false,
+        time: DateTime.now(),
+      );
+
       setState(() {
         _isTyping = false;
         _messages.add(aiMessage);
         _listKey.currentState?.insertItem(_messages.length - 1);
       });
-      
+
       _typingAnimationController.stop();
       await _saveMessages();
       _scrollToBottom();
@@ -400,7 +432,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         _isTyping = false;
       });
       _typingAnimationController.stop();
-      
+
       if (mounted) {
         _showErrorSnackBar('發送訊息時發生錯誤: $e');
       }
@@ -442,13 +474,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 final metroReward = await ChallengeService.handleMetroCheckin();
                 if (metroReward) {
                   _coinDisplayKey.currentState?.refreshCoins();
-                  
+
                   final aiResponse = ChatMessage(
                     text: '完成每日挑戰，請自挑戰任務領取獎勵',
                     isUser: false,
                     time: DateTime.now(),
                   );
-                  
+
                   setState(() {
                     _isTyping = false;
                     _messages.add(aiResponse);
@@ -468,7 +500,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 isUser: false,
                 time: DateTime.now(),
               );
-              
+
               setState(() {
                 _isTyping = false;
                 _messages.add(aiMessage);
@@ -476,7 +508,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               });
               await _saveMessages();
             }
-            
+
             _scrollToBottom();
           } catch (e) {
             if (mounted) {
@@ -509,7 +541,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Future<void> _saveAiName(String name) async {
     if (_currentUser == null) return;
-    
+
     final prefs = await SharedPreferences.getInstance();
     final username = _currentUser!['username'] ?? 'default';
     final aiNameKey = 'ai_name_$username';
@@ -532,11 +564,15 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                 Colors.blue.shade50,
               ],
               stops: const [0.0, 0.3, 0.7, 1.0],
-              transform: GradientRotation(_backgroundAnimation.value.clamp(0.0, 2 * math.pi)),
+              transform: GradientRotation(
+                _backgroundAnimation.value.clamp(0.0, 2 * math.pi),
+              ),
             ),
           ),
           child: CustomPaint(
-            painter: BackgroundPatternPainter(_backgroundAnimation.value.clamp(0.0, 2 * math.pi)),
+            painter: BackgroundPatternPainter(
+              _backgroundAnimation.value.clamp(0.0, 2 * math.pi),
+            ),
             size: Size.infinite,
           ),
         );
@@ -551,7 +587,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
       child: Row(
-        mainAxisAlignment: message.isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        mainAxisAlignment: message.isUser
+            ? MainAxisAlignment.end
+            : MainAxisAlignment.start,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           if (!message.isUser)
@@ -571,32 +609,32 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                         ),
                       ],
                     ),
-                                                                 child: FutureBuilder<String?>(
-                          future: _getSelectedStyleImage(),
-                          builder: (context, snapshot) {
-                            final imageUrl = snapshot.data;
-                            if (imageUrl != null && imageUrl.isNotEmpty) {
-                              return CircleAvatar(
-                                radius: 20,
-                                backgroundImage: NetworkImage(imageUrl),
-                                onBackgroundImageError: (exception, stackTrace) {
-                                  // 如果圖片載入失敗，使用預設圖標
-                                },
-                                child: null,
-                              );
-                            } else {
-                              return CircleAvatar(
-                                radius: 20,
-                                backgroundColor: Colors.blue.shade400,
-                                child: Icon(
-                                  Icons.pets,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              );
-                            }
-                          },
-                        ),
+                    child: FutureBuilder<String?>(
+                      future: _getSelectedStyleImage(),
+                      builder: (context, snapshot) {
+                        final imageUrl = snapshot.data;
+                        if (imageUrl != null && imageUrl.isNotEmpty) {
+                          return CircleAvatar(
+                            radius: 20,
+                            backgroundImage: NetworkImage(imageUrl),
+                            onBackgroundImageError: (exception, stackTrace) {
+                              // 如果圖片載入失敗，使用預設圖標
+                            },
+                            child: null,
+                          );
+                        } else {
+                          return CircleAvatar(
+                            radius: 20,
+                            backgroundColor: Colors.blue.shade400,
+                            child: Icon(
+                              Icons.pets,
+                              color: Colors.white,
+                              size: 24,
+                            ),
+                          );
+                        }
+                      },
+                    ),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -612,14 +650,19 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             ),
           Flexible(
             child: Column(
-              crossAxisAlignment: message.isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+              crossAxisAlignment: message.isUser
+                  ? CrossAxisAlignment.end
+                  : CrossAxisAlignment.start,
               children: [
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     gradient: message.isUser
                         ? LinearGradient(
-                            colors: [Colors.blue.shade400, Colors.blue.shade600],
+                            colors: [
+                              Colors.blue.shade400,
+                              Colors.blue.shade600,
+                            ],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           )
@@ -671,7 +714,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                               Text(
                                 message.text,
                                 style: TextStyle(
-                                  color: message.isUser ? Colors.white : Colors.black87,
+                                  color: message.isUser
+                                      ? Colors.white
+                                      : Colors.black87,
                                   fontSize: 16,
                                 ),
                               ),
@@ -681,14 +726,19 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       : Text(
                           message.text,
                           style: TextStyle(
-                            color: message.isUser ? Colors.white : Colors.black87,
+                            color: message.isUser
+                                ? Colors.white
+                                : Colors.black87,
                             fontSize: 16,
                           ),
                         ),
                 ),
                 const SizedBox(height: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.8),
                     borderRadius: BorderRadius.circular(12),
@@ -748,20 +798,26 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                                     ),
                                   );
                                 },
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return CircleAvatar(
-                                    radius: 20,
-                                    backgroundColor: Colors.grey.shade300,
-                                    child: CircularProgressIndicator(
-                                      value: loadingProgress.expectedTotalBytes != null
-                                          ? loadingProgress.cumulativeBytesLoaded /
-                                              loadingProgress.expectedTotalBytes!
-                                          : null,
-                                      strokeWidth: 2,
-                                    ),
-                                  );
-                                },
+                                loadingBuilder:
+                                    (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return CircleAvatar(
+                                        radius: 20,
+                                        backgroundColor: Colors.grey.shade300,
+                                        child: CircularProgressIndicator(
+                                          value:
+                                              loadingProgress
+                                                      .expectedTotalBytes !=
+                                                  null
+                                              ? loadingProgress
+                                                        .cumulativeBytesLoaded /
+                                                    loadingProgress
+                                                        .expectedTotalBytes!
+                                              : null,
+                                          strokeWidth: 2,
+                                        ),
+                                      );
+                                    },
                               ),
                             ),
                           );
@@ -818,32 +874,28 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-                     FutureBuilder<String?>(
-                       future: _getSelectedStyleImage(),
-                       builder: (context, snapshot) {
-                         final imageUrl = snapshot.data;
-                         if (imageUrl != null && imageUrl.isNotEmpty) {
-                           return CircleAvatar(
-                             radius: 16,
-                             backgroundImage: NetworkImage(imageUrl),
-                             onBackgroundImageError: (exception, stackTrace) {
-                               // 如果圖片載入失敗，使用預設圖標
-                             },
-                             child: null,
-                           );
-                         } else {
-                           return CircleAvatar(
-                             radius: 16,
-                             backgroundColor: Colors.blue.shade400,
-                             child: Icon(
-                               Icons.pets,
-                               color: Colors.white,
-                               size: 20,
-                             ),
-                           );
-                         }
-                       },
-                     ),
+          FutureBuilder<String?>(
+            future: _getSelectedStyleImage(),
+            builder: (context, snapshot) {
+              final imageUrl = snapshot.data;
+              if (imageUrl != null && imageUrl.isNotEmpty) {
+                return CircleAvatar(
+                  radius: 16,
+                  backgroundImage: NetworkImage(imageUrl),
+                  onBackgroundImageError: (exception, stackTrace) {
+                    // 如果圖片載入失敗，使用預設圖標
+                  },
+                  child: null,
+                );
+              } else {
+                return CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.blue.shade400,
+                  child: Icon(Icons.pets, color: Colors.white, size: 20),
+                );
+              }
+            },
+          ),
           const SizedBox(width: 12),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -877,9 +929,11 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       animation: _typingAnimationController,
       builder: (context, child) {
         final delay = index * 0.2;
-        final animationValue = ((_typingAnimationController.value.clamp(0.0, 1.0)) + delay) % 1.0;
-        final scale = (0.5 + (0.5 * math.sin(animationValue * 2 * math.pi))).clamp(0.0, 1.0);
-        
+        final animationValue =
+            ((_typingAnimationController.value.clamp(0.0, 1.0)) + delay) % 1.0;
+        final scale = (0.5 + (0.5 * math.sin(animationValue * 2 * math.pi)))
+            .clamp(0.0, 1.0);
+
         return Transform.scale(
           scale: scale,
           child: Container(
@@ -950,7 +1004,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
+
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
@@ -993,7 +1047,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                   ),
                 ),
                 const SizedBox(width: 12),
-                
+
                 GestureDetector(
                   onTapDown: (_) => _sendButtonAnimationController.forward(),
                   onTapUp: (_) => _sendButtonAnimationController.reverse(),
@@ -1007,7 +1061,10 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                         child: Container(
                           decoration: BoxDecoration(
                             gradient: LinearGradient(
-                              colors: [Colors.blue.shade400, Colors.blue.shade600],
+                              colors: [
+                                Colors.blue.shade400,
+                                Colors.blue.shade600,
+                              ],
                               begin: Alignment.topLeft,
                               end: Alignment.bottomRight,
                             ),
@@ -1032,7 +1089,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               ],
             ),
           ),
-          
+
           if (_showMenu)
             AnimatedBuilder(
               animation: _menuAnimation,
@@ -1083,9 +1140,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     // 使用預先載入的功能解鎖狀態
     final isUnlocked = _featureUnlockStatus[label] ?? false;
     final requiredLevel = FeatureUnlockService.getRequiredLevel(label);
-    
+
     LoggerService.debug('功能檢查: $label, 已解鎖: $isUnlocked, 需要等級: $requiredLevel');
-    
+
     return GestureDetector(
       onTap: () {
         LoggerService.info('點擊菜單項: $label');
@@ -1097,27 +1154,27 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
-              isUnlocked 
-                  ? color.withValues(alpha: 0.1) 
+              isUnlocked
+                  ? color.withValues(alpha: 0.1)
                   : Colors.grey.withValues(alpha: 0.1),
-              isUnlocked 
-                  ? color.withValues(alpha: 0.2) 
-                  : Colors.grey.withValues(alpha: 0.2)
+              isUnlocked
+                  ? color.withValues(alpha: 0.2)
+                  : Colors.grey.withValues(alpha: 0.2),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: isUnlocked 
-                ? color.withValues(alpha: 0.3) 
-                : Colors.grey.withValues(alpha: 0.3), 
-            width: 1
+            color: isUnlocked
+                ? color.withValues(alpha: 0.3)
+                : Colors.grey.withValues(alpha: 0.3),
+            width: 1,
           ),
           boxShadow: [
             BoxShadow(
-              color: isUnlocked 
-                  ? color.withValues(alpha: 0.2) 
+              color: isUnlocked
+                  ? color.withValues(alpha: 0.2)
                   : Colors.grey.withValues(alpha: 0.2),
               blurRadius: 8,
               offset: const Offset(0, 2),
@@ -1161,11 +1218,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                     color: Colors.red.shade600,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Icon(
-                    Icons.lock,
-                    size: 12,
-                    color: Colors.white,
-                  ),
+                  child: Icon(Icons.lock, size: 12, color: Colors.white),
                 ),
               ),
           ],
@@ -1174,26 +1227,22 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     );
   }
 
-
-
-
-
   void _handleMenuItemTap(String label, int requiredLevel, bool isUnlocked) {
     LoggerService.info('點擊菜單項: $label, 需要等級: $requiredLevel, 已解鎖: $isUnlocked');
-    
+
     if (!isUnlocked) {
       LoggerService.info('功能未解鎖，顯示等級鎖定對話框');
       _showLevelLockDialog(label, requiredLevel);
       return;
     }
-    
+
     LoggerService.info('功能已解鎖，準備導航到: $label');
-    
+
     setState(() {
       _showMenu = false;
     });
     _menuAnimationController.reverse();
-    
+
     // 使用 Future.delayed 來避免 context 問題
     Future.delayed(const Duration(milliseconds: 100), () {
       if (!mounted) {
@@ -1210,9 +1259,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       LoggerService.warning('Widget 已卸載，取消導航到: $label');
       return;
     }
-    
+
     LoggerService.info('_navigateToPage 被調用，目標: $label');
-    
+
     try {
       switch (label) {
         case '桌寵':
@@ -1246,7 +1295,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   void _navigateToPetPage() {
     if (!mounted) return;
-    _safeNavigate(() => PetPage(initialPetName: _aiName)).then((newName) {
+    _safeNavigate(() => pet.PetPage(initialPetName: _aiName)).then((newName) {
       if (!mounted) return;
       if (newName is String) {
         setState(() {
@@ -1263,7 +1312,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   void _navigateToStorePage() {
     if (!mounted) return;
     LoggerService.info('嘗試導航到商城頁面');
-    
+
     try {
       LoggerService.info('開始創建 MaterialPageRoute');
       final route = MaterialPageRoute(
@@ -1273,25 +1322,28 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         },
       );
       LoggerService.info('MaterialPageRoute 創建成功');
-      
+
       LoggerService.info('開始導航');
-      Navigator.of(context).push(route).then((_) {
-        LoggerService.info('導航完成，用戶返回');
-        if (!mounted) {
-          LoggerService.warning('Widget 已卸載，跳過後續處理');
-          return;
-        }
-        LoggerService.info('從商城頁面返回');
-        _coinDisplayKey.currentState?.refreshCoins();
-        // 通知背景更新
-        ThemeBackgroundNotifier().notifyBackgroundChanged();
-        // 刷新頭像顯示
-        _refreshAvatarDisplay();
-      }).catchError((error) {
-        LoggerService.error('導航過程中發生錯誤: $error');
-        _showErrorSnackBar('導航過程中發生錯誤: $error');
-      });
-      
+      Navigator.of(context)
+          .push(route)
+          .then((_) {
+            LoggerService.info('導航完成，用戶返回');
+            if (!mounted) {
+              LoggerService.warning('Widget 已卸載，跳過後續處理');
+              return;
+            }
+            LoggerService.info('從商城頁面返回');
+            _coinDisplayKey.currentState?.refreshCoins();
+            // 通知背景更新
+            ThemeBackgroundNotifier().notifyBackgroundChanged();
+            // 刷新頭像顯示
+            _refreshAvatarDisplay();
+          })
+          .catchError((error) {
+            LoggerService.error('導航過程中發生錯誤: $error');
+            _showErrorSnackBar('導航過程中發生錯誤: $error');
+          });
+
       LoggerService.info('導航請求已發送');
     } catch (e) {
       LoggerService.error('導航到商城頁面時發生錯誤: $e');
@@ -1325,7 +1377,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   Future<T?> _safeNavigate<T>(Widget Function() pageBuilder) async {
     if (!mounted) return null;
-    
+
     try {
       return await Navigator.of(context).push<T>(
         PageRouteBuilder<T>(
@@ -1343,7 +1395,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   void _showErrorSnackBar(String message) {
     if (!mounted) return;
-    
+
     try {
       final messenger = ScaffoldMessenger.of(context);
       if (messenger.mounted) {
@@ -1362,7 +1414,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   void _showSuccessSnackBar(String message) {
     if (!mounted) return;
-    
+
     try {
       final messenger = ScaffoldMessenger.of(context);
       if (messenger.mounted) {
@@ -1387,7 +1439,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   void _showWarningSnackBar(String message) {
     if (!mounted) return;
-    
+
     try {
       final messenger = ScaffoldMessenger.of(context);
       if (messenger.mounted) {
@@ -1404,11 +1456,9 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
   }
 
-
-
   void _showLevelLockDialog(String feature, int requiredLevel) {
     if (!mounted) return;
-    
+
     try {
       showDialog(
         context: context,
@@ -1431,10 +1481,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
               const SizedBox(height: 12),
               Text(
                 '請繼續提升等級來解鎖更多功能！',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade600,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
               ),
             ],
           ),
@@ -1450,8 +1497,6 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
       LoggerService.error('顯示等級鎖定對話框時發生錯誤: $e');
     }
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -1475,67 +1520,60 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
 
     return Scaffold(
-                   appBar: AppBar(
+      appBar: AppBar(
         automaticallyImplyLeading: false,
-         title: Row(
-           children: [
-             Container(
-               width: 32,
-               height: 32,
-               decoration: BoxDecoration(
-                 shape: BoxShape.circle,
-                 boxShadow: [
-                   BoxShadow(
-                     color: Colors.black.withValues(alpha: 0.2),
-                     blurRadius: 8,
-                     offset: const Offset(0, 2),
-                   ),
-                 ],
-               ),
-               child: FutureBuilder<String?>(
-                 future: _getSelectedStyleImage(),
-                 builder: (context, snapshot) {
-                   final imageUrl = snapshot.data;
-                   if (imageUrl != null && imageUrl.isNotEmpty) {
-                     return CircleAvatar(
-                       backgroundImage: NetworkImage(imageUrl),
-                       onBackgroundImageError: (exception, stackTrace) {
-                         // 如果圖片載入失敗，使用預設圖標
-                       },
-                       child: null,
-                     );
-                   } else {
-                     return CircleAvatar(
-                       backgroundColor: Colors.blue.shade400,
-                       child: Icon(
-                         Icons.pets,
-                         color: Colors.white,
-                         size: 20,
-                       ),
-                     );
-                   }
-                 },
-               ),
-             ),
-             const SizedBox(width: 12),
-             Column(
-               crossAxisAlignment: CrossAxisAlignment.start,
-               children: [
-                 Text(
-                   _aiName,
-                   style: const TextStyle(
-                     fontWeight: FontWeight.bold,
-                     fontSize: 18,
-                   ),
-                 ),
-                 ExperienceDisplay(
-                   key: _experienceDisplayKey,
-                   isCompact: true,
-                 ),
-               ],
-             ),
-           ],
-         ),
+        title: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.2),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: FutureBuilder<String?>(
+                future: _getSelectedStyleImage(),
+                builder: (context, snapshot) {
+                  final imageUrl = snapshot.data;
+                  if (imageUrl != null && imageUrl.isNotEmpty) {
+                    return CircleAvatar(
+                      backgroundImage: NetworkImage(imageUrl),
+                      onBackgroundImageError: (exception, stackTrace) {
+                        // 如果圖片載入失敗，使用預設圖標
+                      },
+                      child: null,
+                    );
+                  } else {
+                    return CircleAvatar(
+                      backgroundColor: Colors.blue.shade400,
+                      child: Icon(Icons.pets, color: Colors.white, size: 20),
+                    );
+                  }
+                },
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _aiName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 18,
+                  ),
+                ),
+                ExperienceDisplay(key: _experienceDisplayKey, isCompact: true),
+              ],
+            ),
+          ],
+        ),
         elevation: 0,
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
@@ -1571,22 +1609,28 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
             Column(
               children: [
                 const SizedBox(height: 100),
-                
+
                 Expanded(
                   child: AnimatedList(
                     key: _listKey,
                     controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 16,
+                    ),
                     initialItemCount: _messages.length,
                     itemBuilder: (context, index, animation) {
                       return SlideTransition(
-                        position: Tween<Offset>(
-                          begin: const Offset(0, 0.5),
-                          end: Offset.zero,
-                        ).animate(CurvedAnimation(
-                          parent: animation,
-                          curve: Curves.easeOut,
-                        )),
+                        position:
+                            Tween<Offset>(
+                              begin: const Offset(0, 0.5),
+                              end: Offset.zero,
+                            ).animate(
+                              CurvedAnimation(
+                                parent: animation,
+                                curve: Curves.easeOut,
+                              ),
+                            ),
                         child: FadeTransition(
                           opacity: animation,
                           child: _buildMessage(_messages[index]),
@@ -1595,13 +1639,13 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                     },
                   ),
                 ),
-                
+
                 if (_isTyping) _buildTypingIndicator(),
-                
+
                 _buildInputArea(),
               ],
             ),
-            
+
             if (_showWelcomeAnimation)
               WelcomeCoinAnimation(
                 onAnimationComplete: _onWelcomeAnimationComplete,
@@ -1629,12 +1673,8 @@ class BackgroundPatternPainter extends CustomPainter {
       final clampedValue = animationValue.clamp(0.0, 2 * math.pi);
       final x = (size.width * i / 20) + (clampedValue * 50);
       final y = size.height * 0.2 + (math.sin(clampedValue + i * 0.5) * 20);
-      
-      canvas.drawCircle(
-        Offset(x, y),
-        3,
-        paint,
-      );
+
+      canvas.drawCircle(Offset(x, y), 3, paint);
     }
   }
 
