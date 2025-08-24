@@ -31,7 +31,7 @@ class EffectModel {
         case 'B-Boy':
           return 'assets/MRTvedio/boy.mp4';
         case '文青少年':
-          return 'assets/MRTvedio/coffee.mp4';
+          return 'assets/MRTvedio/ccc.mp4';
         case '來去泡溫泉':
           return 'assets/MRTvedio/hotspring.mp4';
         case '登山客':
@@ -47,7 +47,7 @@ class EffectModel {
         case '下雨天':
           return 'assets/MRTvedio/rain.mp4';
         case '買米買菜買冬瓜':
-          return 'assets/MRTvedio/market.mp4';
+          return 'assets/MRTvedio/abc.mp4';
         default:
           // 如果沒有對應的映射，使用預設的編號方式
           return 'assets/MRTvedio/特效$number.mp4';

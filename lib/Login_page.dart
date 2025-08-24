@@ -8,6 +8,7 @@ import 'user_service.dart';
 import 'data_service.dart';
 import 'logger_service.dart';
 import 'experience_service.dart';
+import 'login_marquee_widget.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -294,9 +295,22 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    '請登入您的帳號',
-                    style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                  
+                  // 跑馬燈訊息
+                  LoginMarqueeWidget(
+                    messages: [
+                      '讓捷米陪伴你度過每一天吧~',
+                      '去捷運知識王賺取更多金幣',
+                      '解鎖徽章功能挑戰更多任務',
+                    ],
+                    duration: const Duration(seconds: 4),
+                    textStyle: TextStyle(
+                      fontSize: 16,
+                      color: Colors.grey.shade600,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    height: 60,
+                    showIndicators: true,
                   ),
                   const SizedBox(height: 32),
 

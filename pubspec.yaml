@@ -74,15 +74,10 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/mrt_knowledge/
     - assets/MRTvedio/
-    - assets/gifs/
-    # 特效影片檔案
-    - assets/mrt_knowledge/index.html
-    - assets/mrt_knowledge/style.css
-    - assets/mrt_knowledge/main.js
-    - assets/mrt_knowledge/mrt_music.mp3
-    - assets/mrt_knowledge/jamie_take_mrt.png
+    - assets/mrt_knowledge_assets/
+    - assets/mrt_knowledge_assets/jamie_take_mrt.png
+    - assets/mrt_knowledge_assets/mrt_music.mp3
 
   # An image asset can refer to one or more resolution-specific "variants", 
   # https://flutter.dev/to/resolution-aware-images
