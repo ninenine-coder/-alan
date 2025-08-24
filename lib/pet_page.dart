@@ -11,6 +11,8 @@ import 'theme_background_service.dart';
 import 'theme_background_widget.dart';
 import 'unified_user_data_service.dart';
 import 'avatar_service.dart';
+import 'asset_video_player.dart';
+import 'effect_thumbnail.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -68,6 +70,30 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         curve: Curves.easeInOut,
       ),
     );
+
+    // 載入已選擇的特效
+    _loadSelectedEffect();
+  }
+
+  /// 載入已選擇的特效
+  Future<void> _loadSelectedEffect() async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return;
+
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      final selectedEffect = prefs.getString('selected_effect_$username');
+      
+      if (selectedEffect != null && selectedEffect.isNotEmpty) {
+        setState(() {
+          _selectedEffectItem = selectedEffect;
+        });
+        LoggerService.info('已載入選擇的特效: $selectedEffect');
+      }
+    } catch (e) {
+      LoggerService.error('載入選擇的特效失敗: $e');
+    }
   }
 
   // 將背包彈窗中的分類名稱對應到商城的標籤名稱
@@ -492,221 +518,80 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   }
 
   Widget _buildPetCharacter() {
-    return GestureDetector(
-      onTap: _handlePetInteraction,
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 寵物角色容器
-            Container(
-              width: 200,
-              height: 200,
-              decoration: BoxDecoration(
-                color: Colors.lightBlue[50],
-                borderRadius: BorderRadius.circular(100),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.blue.withValues(alpha: 0.2),
-                    blurRadius: 20,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  // 雲朵形狀背景
-                  Positioned(
-                    bottom: 20,
-                    child: Container(
-                      width: 160,
-                      height: 60,
-                      decoration: BoxDecoration(
-                        color: Colors.lightBlue[200],
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                    ),
-                  ),
-                  // 寵物角色
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      // 帽子
-                      Container(
-                        width: 80,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          color: Colors.blue[600],
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: const Center(
-                          child: Text(
-                            'G',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // 臉部
-                      Container(
-                        width: 60,
-                        height: 60,
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(30),
-                        ),
-                        child: Stack(
-                          children: [
-                            // 耳朵
-                            Positioned(
-                              top: -5,
-                              left: -5,
-                              child: Container(
-                                width: 25,
-                                height: 35,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                            Positioned(
-                              top: -5,
-                              right: -5,
-                              child: Container(
-                                width: 25,
-                                height: 35,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                              ),
-                            ),
-                            // 臉部特徵
-                            Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  // 眼睛
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: Colors.black,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Container(
-                                        width: 8,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: Colors.black,
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  // 臉頰
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Container(
-                                        width: 12,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: Colors.pink[200],
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Container(
-                                        width: 12,
-                                        height: 8,
-                                        decoration: BoxDecoration(
-                                          color: Colors.pink[200],
-                                          borderRadius: BorderRadius.circular(
-                                            4,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 4),
-                                  // 嘴巴
-                                  Container(
-                                    width: 20,
-                                    height: 12,
-                                    decoration: BoxDecoration(
-                                      color: Colors.pink[300],
-                                      borderRadius: BorderRadius.circular(6),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      // 身體
-                      Container(
-                        width: 70,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          color: Colors.blue[400],
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                        child: Stack(
-                          children: [
-                            // 綠色包包
-                            Positioned(
-                              right: -5,
-                              top: 5,
-                              child: Container(
-                                width: 25,
-                                height: 35,
-                                decoration: BoxDecoration(
-                                  color: Colors.green[400],
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          
+          // 特效影片顯示區域 - 始終顯示這個區域
+          _buildEffectVideoSection(),
+          
+          const SizedBox(height: 20),
+          // 互動提示
+          if (_isInteracting)
+            const CircularProgressIndicator(
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
             ),
-            const SizedBox(height: 20),
-            // 互動提示
-            if (_isInteracting)
-              const CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+        ],
+      ),
+    );
+  }
+
+  /// 構建特效影片顯示區域
+  Widget _buildEffectVideoSection() {
+    // 如果沒有選擇特效，返回空容器
+    if (_selectedEffectItem == null || _selectedEffectItem!.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // 根據選擇的特效名稱獲取影片路徑
+    final videoPath = _getEffectVideoPath(_selectedEffectItem!);
+    
+    return Container(
+      width: double.infinity,
+      height: 300, // 增加高度
+      padding: const EdgeInsets.symmetric(horizontal: 10), // 減少水平邊距
+      margin: const EdgeInsets.only(bottom: 10), // 減少底部邊距
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.2),
+                blurRadius: 8,
+                offset: const Offset(0, 4),
               ),
-          ],
+            ],
+          ),
+          child: AssetVideoPlayer(
+            assetPath: videoPath,
+            autoPlay: true,
+            showControls: false, // 移除控制按鈕
+          ),
         ),
       ),
     );
+  }
+
+  /// 獲取選擇的特效影片路徑
+  Future<String?> _getSelectedEffectVideoPath() async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return null;
+
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      final selectedEffectVideo = prefs.getString('selected_effect_video_$username');
+      
+      return selectedEffectVideo;
+    } catch (e) {
+      LoggerService.error('Error getting selected effect video path: $e');
+      return null;
+    }
   }
 
   // 背包選單相關
@@ -939,41 +824,47 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
               ),
-              child: Container(
-                width: MediaQuery.of(context).size.width * 0.9,
-                height: MediaQuery.of(context).size.height * 0.8,
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  children: [
-                    // 標題
-                    Row(
-                      children: [
-                        Icon(
-                          _getCategoryIcon(category),
-                          color: Colors.blue[600],
-                          size: 24,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          category,
-                          style: const TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width * 0.9,
+                  maxHeight: MediaQuery.of(context).size.height * 0.8,
+                ),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // 標題
+                      Row(
+                        children: [
+                          Icon(
+                            _getCategoryIcon(category),
+                            color: Colors.blue[600],
+                            size: 24,
                           ),
-                        ),
-                        const Spacer(),
-                        IconButton(
-                          onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 16),
-                    // 內容區域
-                    Expanded(
-                      child: _buildCategoryContent(category, setDialogState),
-                    ),
-                  ],
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              category,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            onPressed: () => Navigator.of(context).pop(),
+                            icon: const Icon(Icons.close),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // 內容區域
+                      Flexible(
+                        child: _buildCategoryContent(category, setDialogState),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             );
@@ -1159,41 +1050,43 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                   ),
                   child: Stack(
                     children: [
-                      // 圖片
+                      // 圖片或影片
                       imageUrl.isNotEmpty &&
                               imageUrl != '""' &&
                               imageUrl != 'null' &&
                               category != '主題桌布'
-                          ? Image.network(
-                              imageUrl,
-                              width: double.infinity,
-                              height: double.infinity,
-                              fit: BoxFit.cover,
-                              color: isOwned ? null : Colors.grey.shade400,
-                              colorBlendMode: isOwned
-                                  ? null
-                                  : BlendMode.saturation,
-                              loadingBuilder:
-                                  (context, child, loadingProgress) {
-                                    if (loadingProgress == null) return child;
-                                    return Center(
-                                      child: CircularProgressIndicator(
-                                        value:
-                                            loadingProgress
-                                                    .expectedTotalBytes !=
-                                                null
-                                            ? loadingProgress
-                                                      .cumulativeBytesLoaded /
-                                                  loadingProgress
-                                                      .expectedTotalBytes!
-                                            : null,
-                                      ),
-                                    );
+                          ? category == '特效'
+                              ? _buildEffectVideoWidget(item, isOwned)
+                              : Image.network(
+                                  imageUrl,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  fit: BoxFit.cover,
+                                  color: isOwned ? null : Colors.grey.shade400,
+                                  colorBlendMode: isOwned
+                                      ? null
+                                      : BlendMode.saturation,
+                                  loadingBuilder:
+                                      (context, child, loadingProgress) {
+                                        if (loadingProgress == null) return child;
+                                        return Center(
+                                          child: CircularProgressIndicator(
+                                            value:
+                                                loadingProgress
+                                                        .expectedTotalBytes !=
+                                                    null
+                                                ? loadingProgress
+                                                          .cumulativeBytesLoaded /
+                                                      loadingProgress
+                                                          .expectedTotalBytes!
+                                                : null,
+                                          ),
+                                        );
+                                      },
+                                  errorBuilder: (context, error, stackTrace) {
+                                    return _buildNoImagePlaceholder();
                                   },
-                              errorBuilder: (context, error, stackTrace) {
-                                return _buildNoImagePlaceholder();
-                              },
-                            )
+                                )
                           : category == '主題桌布'
                           ? _buildThemeBackgroundPlaceholder(item)
                           : _buildNoImagePlaceholder(),
@@ -1649,7 +1542,8 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
       } else if (category == '特效') {
         // 保存選擇的特效
         await prefs.setString('selected_effect_$username', itemName);
-        await prefs.setString('selected_effect_image_$username', itemImageUrl);
+        final videoPath = _getEffectVideoPath(itemName);
+        await prefs.setString('selected_effect_video_$username', videoPath);
 
         // 更新選中狀態
         setState(() {
@@ -1658,7 +1552,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
         if (mounted) {
           // 顯示視覺反饋
-          _showSelectionFeedback(context, itemName, itemImageUrl, category);
+          _showSelectionFeedback(context, itemName, videoPath, category);
         }
       } else if (category == '主題桌布') {
         // 保存選擇的主題背景
@@ -1728,15 +1622,20 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // 成功圖標
-                Container(
-                  width: 60,
-                  height: 60,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxWidth: MediaQuery.of(context).size.width * 0.85,
+              maxHeight: MediaQuery.of(context).size.height * 0.7,
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 成功圖標
+                  Container(
+                    width: 60,
+                    height: 60,
                   decoration: BoxDecoration(
                     color: Colors.green.shade100,
                     shape: BoxShape.circle,
@@ -1760,7 +1659,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                 ),
                 const SizedBox(height: 8),
 
-                // 商品圖片
+                // 商品圖片或影片
                 if (itemImageUrl.isNotEmpty)
                   Container(
                     width: 80,
@@ -1771,20 +1670,22 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                     ),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: Image.network(
-                        itemImageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return Container(
-                            color: Colors.grey.shade200,
-                            child: Icon(
-                              _getCategoryIcon(category),
-                              color: Colors.grey.shade400,
-                              size: 32,
+                      child: category == '特效'
+                          ? _buildEffectPreviewWidget(itemName)
+                          : Image.network(
+                              itemImageUrl,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  color: Colors.grey.shade200,
+                                  child: Icon(
+                                    _getCategoryIcon(category),
+                                    color: Colors.grey.shade400,
+                                    size: 32,
+                                  ),
+                                );
+                              },
                             ),
-                          );
-                        },
-                      ),
                     ),
                   ),
                 const SizedBox(height: 12),
@@ -1827,6 +1728,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
               ],
             ),
           ),
+        ),
         );
       },
     );
@@ -1962,5 +1864,160 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         LoggerService.info('頭像數據已更新，重建UI');
       });
     }
+  }
+
+  /// 根據特效名稱獲取影片路徑
+  String _getEffectVideoPath(String effectName) {
+    // 根據 Firebase name 欄位映射到對應的影片檔案
+    switch (effectName) {
+      case '夜市生活':
+        return 'assets/MRTvedio/night.mp4';
+      case 'B-Boy':
+        return 'assets/MRTvedio/boy.mp4';
+      case '文青少年':
+        return 'assets/MRTvedio/coffee.mp4';
+      case '來去泡溫泉':
+        return 'assets/MRTvedio/hotspring.mp4';
+      case '登山客':
+        return 'assets/MRTvedio/mt.mp4';
+      case '淡水夕陽':
+        return 'assets/MRTvedio/sun.mp4';
+      case '跑酷少年':
+        return 'assets/MRTvedio/run.mp4';
+      case '校外教學':
+        return 'assets/MRTvedio/zoo.mp4';
+      case '出門踏青':
+        return 'assets/MRTvedio/walk.mp4';
+      case '下雨天':
+        return 'assets/MRTvedio/rain.mp4';
+      case '買米買菜買冬瓜':
+        return 'assets/MRTvedio/market.mp4';
+      default:
+        // 如果沒有對應的映射，返回空字串或預設影片
+        LoggerService.warning('未找到特效 $effectName 的影片映射，使用預設影片');
+        return 'assets/MRTvedio/night.mp4'; // 使用預設影片
+    }
+  }
+
+  /// 構建特效影片組件
+  Widget _buildEffectVideoWidget(Map<String, dynamic> item, bool isOwned) {
+    final effectName = item['name'] ?? '特效1';
+    
+    // 根據特效名稱構建影片路徑
+    final videoPath = _getEffectVideoPath(effectName);
+    
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: isOwned ? Colors.blue.shade50 : Colors.grey.shade300,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(12),
+        ),
+      ),
+      child: Stack(
+        children: [
+          // 使用 CachedEffectThumbnail 顯示影片封面
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(12),
+            ),
+            child: CachedEffectThumbnail(
+              videoPath: videoPath,
+              width: double.infinity,
+              height: double.infinity,
+            ),
+          ),
+          
+          // 播放按鈕覆蓋層
+          if (isOwned)
+            Center(
+              child: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.black.withOpacity(0.6),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(
+                  Icons.play_arrow,
+                  color: Colors.white,
+                  size: 32,
+                ),
+              ),
+            ),
+          
+          // 如果未擁有，添加灰色遮罩
+          if (!isOwned)
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade400.withOpacity(0.7),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(12),
+                ),
+              ),
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.lock,
+                      size: 32,
+                      color: Colors.grey.shade600,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '未擁有',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// 構建特效預覽組件
+  Widget _buildEffectPreviewWidget(String effectName) {
+    return Container(
+      color: Colors.blue.shade50,
+      child: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.video_library,
+              size: 32,
+              color: Colors.blue.shade600,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              effectName,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue.shade800,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '特效影片',
+              style: TextStyle(
+                fontSize: 8,
+                color: Colors.blue.shade600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

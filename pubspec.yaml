@@ -47,6 +47,8 @@ dependencies:
   firebase_database: ^12.0.0
   cloud_firestore: ^6.0.0
   webview_flutter: ^4.2.1
+  video_player: ^2.8.2
+  video_thumbnail: ^0.5.3
 
 dev_dependencies:
   flutter_test:
@@ -72,10 +74,10 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/images/
-    - assets/app_images/
     - assets/mrt_knowledge/
-    # ??��????��??????????��?????
+    - assets/MRTvedio/
+    - assets/gifs/
+    # 特效影片檔案
     - assets/mrt_knowledge/index.html
     - assets/mrt_knowledge/style.css
     - assets/mrt_knowledge/main.js

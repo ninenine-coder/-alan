@@ -7,6 +7,8 @@ import 'logger_service.dart';
 import 'theme_background_service.dart';
 import 'theme_background_widget.dart';
 import 'unified_user_data_service.dart';
+import 'effect_thumbnail_widget.dart';
+import 'asset_video_player.dart';
 
 class StorePage extends StatefulWidget {
   final String? initialCategory;
@@ -1115,6 +1117,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       '_buildImageWidget - URL是否以https開頭: ${imageUrl.startsWith('https://')}',
     );
 
+    // 如果是特效類別，顯示影片預覽
+    if (category == '特效') {
+      return _buildEffectVideoPreview(name);
+    }
+
     // 檢查圖片URL是否有效
     bool isValidUrl =
         imageUrl.isNotEmpty &&
@@ -1366,6 +1373,170 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
           ),
         ],
       ),
+    );
+  }
+
+  /// 根據特效名稱獲取影片路徑
+  String _getEffectVideoPath(String effectName) {
+    // 根據 Firebase name 欄位映射到對應的影片檔案
+    switch (effectName) {
+      case '夜市生活':
+        return 'assets/MRTvedio/night.mp4';
+      case 'B-Boy':
+        return 'assets/MRTvedio/boy.mp4';
+      case '文青少年':
+        return 'assets/MRTvedio/coffee.mp4';
+      case '來去泡溫泉':
+        return 'assets/MRTvedio/hotspring.mp4';
+      case '登山客':
+        return 'assets/MRTvedio/mt.mp4';
+      case '淡水夕陽':
+        return 'assets/MRTvedio/sun.mp4';
+      case '跑酷少年':
+        return 'assets/MRTvedio/run.mp4';
+      case '校外教學':
+        return 'assets/MRTvedio/zoo.mp4';
+      case '出門踏青':
+        return 'assets/MRTvedio/walk.mp4';
+      case '下雨天':
+        return 'assets/MRTvedio/rain.mp4';
+      case '買米買菜買冬瓜':
+        return 'assets/MRTvedio/market.mp4';
+      default:
+        // 如果沒有對應的映射，返回預設影片
+        LoggerService.warning('未找到特效 $effectName 的影片映射，使用預設影片');
+        return 'assets/MRTvedio/night.mp4'; // 使用預設影片
+    }
+  }
+
+  /// 構建特效影片預覽組件
+  Widget _buildEffectVideoPreview(String effectName) {
+    return EffectThumbnailWidget(
+      effectName: effectName,
+      width: double.infinity,
+      height: double.infinity,
+      onTap: () => _showEffectPreview(context, effectName),
+    );
+  }
+
+  /// 顯示特效影片播放對話框
+  void _showEffectPreview(BuildContext context, String effectName) {
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (BuildContext context) {
+        return Dialog(
+          backgroundColor: Colors.transparent,
+          insetPadding: const EdgeInsets.all(16),
+          child: Stack(
+            children: [
+              // 背景遮罩
+              Positioned.fill(
+                child: GestureDetector(
+                  onTap: () => Navigator.of(context).pop(),
+                  child: Container(color: Colors.black.withValues(alpha: 0.8)),
+                ),
+              ),
+              // 影片播放器容器
+              Center(
+                child: Container(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).size.width * 0.9,
+                    maxHeight: MediaQuery.of(context).size.height * 0.8,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Stack(
+                      children: [
+                        // 影片播放器
+                        AssetVideoPlayer(
+                          assetPath: _getEffectVideoPath(effectName),
+                          autoPlay: true,
+                          showControls: true,
+                        ),
+                        // 關閉按鈕
+                        Positioned(
+                          top: 16,
+                          right: 16,
+                          child: GestureDetector(
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.6),
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.close,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        ),
+                        // 特效資訊（右下角）
+                        Positioned(
+                          bottom: 16,
+                          right: 16,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.7),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.3),
+                                width: 1,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  effectName,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '特效影片',
+                                  style: TextStyle(
+                                    color: Colors.blue.shade300,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                  textAlign: TextAlign.right,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
