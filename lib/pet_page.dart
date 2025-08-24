@@ -13,6 +13,11 @@ import 'unified_user_data_service.dart';
 import 'avatar_service.dart';
 import 'asset_video_player.dart';
 import 'effect_thumbnail.dart';
+import 'food_service.dart';
+import 'food_feeding_service.dart';
+import 'food_initialization_service.dart';
+import 'purchase_count_service.dart';
+import 'user_purchase_service.dart';
 
 class PetPage extends StatefulWidget {
   final String initialPetName;
@@ -37,6 +42,12 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
   String? _selectedThemeItem; // 選中的主題桌布項目
   String? _selectedFoodItem; // 選中的飼料項目
   
+  // 餵食動畫相關狀態變量
+  bool _isFeeding = false;
+  String? _feedingFoodId;
+  String? _feedingFoodName;
+  String? _feedingFoodImageUrl;
+   
   // 頭像相關狀態變量
   String? _selectedAvatarNoBgUrl; // 選中的無背景頭像URL
   List<Map<String, dynamic>> _avatars = []; // 頭像列表
@@ -90,6 +101,13 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
     // 載入頭像列表和已選擇的頭像
     _loadAvatars();
     _loadSelectedAvatar();
+    // 初始化飼料庫存
+    _initializeFoodInventory();
+    // 初始化購買計數
+    _initializePurchaseCounts();
+    
+    // 初始化飼料庫存
+    _initializeFoodInventory();
     
     // 載入已選擇的特效 - 確保特效在頁面載入時立即顯示
     _loadSelectedEffect();
@@ -419,20 +437,20 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
           child: Stack(
             children: [
               Column(
-                children: [
-                  // 頂部狀態欄
-                  _buildStatusBar(),
+            children: [
+              // 頂部狀態欄
+              _buildStatusBar(),
 
-                  // 用戶資料區域
-                  _buildUserProfileSection(),
+              // 用戶資料區域
+              _buildUserProfileSection(),
 
-                  // 中央寵物角色
-                  Expanded(child: _buildPetCharacter()),
+              // 中央寵物角色
+              Expanded(child: _buildPetCharacter()),
 
-                  // 底部背包區域
-                  _buildBackpackSection(),
-                ],
-              ),
+              // 底部背包區域
+              _buildBackpackSection(),
+            ],
+          ),
               // 頭像覆蓋層 - 與背包選單完全縫合
               if (_selectedAvatarNoBgUrl != null)
                 Positioned(
@@ -460,6 +478,17 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
                       errorBuilder: (context, error, stackTrace) =>
                           const Icon(Icons.broken_image, size: 60, color: Colors.grey),
                     ),
+                  ),
+                ),
+              // 餵食動畫覆蓋層
+              if (_isFeeding && _feedingFoodImageUrl != null)
+                Positioned(
+                  right: 60, // 從頭像位置開始
+                  bottom: _showBackpack ? 260 : 60, // 根據背包選單狀態調整位置
+                  child: FoodFeedingAnimation(
+                    foodImageUrl: _feedingFoodImageUrl!,
+                    foodName: _feedingFoodName ?? '飼料',
+                    onAnimationComplete: _onFeedingAnimationComplete,
                   ),
                 ),
             ],
@@ -759,27 +788,74 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
       child: ClipRRect(
                                   borderRadius: BorderRadius.circular(12),
                               child: Container(
-                                decoration: BoxDecoration(
+              decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
+                boxShadow: [
+                  BoxShadow(
                 color: Colors.black.withOpacity(0.2),
                 blurRadius: 8,
                 offset: const Offset(0, 4),
+                  ),
+                ],
               ),
-            ],
-                        ),
-                        child: Stack(
-                          children: [
+              child: Stack(
+                children: [
               // 特效影片
-              AssetVideoPlayer(
-                key: ValueKey(videoPath), // 添加key，確保路徑改變時重建widget
-                assetPath: videoPath,
-                autoPlay: true,
-                showControls: false, // 移除控制按鈕
-                            ),
-                          ],
-                        ),
+              GestureDetector(
+                onTap: _handlePetInteraction,
+                child: AssetVideoPlayer(
+                  key: ValueKey(videoPath), // 添加key，確保路徑改變時重建widget
+                  assetPath: videoPath,
+                  autoPlay: true,
+                  showControls: false, // 移除控制按鈕
+                ),
+              ),
+              
+              // 飼料數量顯示 - 左下角
+              Positioned(
+                left: 16,
+                bottom: 16,
+                child: StreamBuilder<Map<String, int>>(
+                  stream: FoodService.getUserFoodInventoryStream(),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasData && snapshot.data!.isNotEmpty) {
+                      final totalFood = snapshot.data!.values.fold<int>(0, (sum, amount) => sum + amount);
+                      if (totalFood > 0) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.7),
+                          borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: Colors.white.withOpacity(0.3), width: 1),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                          children: [
+                              Icon(
+                                Icons.restaurant,
+                                  color: Colors.white,
+                                size: 16,
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                'x$totalFood',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                        );
+                      }
+                    }
+                    return const SizedBox.shrink();
+                  },
+                                        ),
+                                      ),
+                                    ],
+                                  ),
         ),
       ),
     );
@@ -1155,8 +1231,8 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
 
         return Column(
           children: [
-            // 顯示未擁有商品選項（頭像類別不顯示此選項）
-            if (category != '頭像')
+            // 顯示未擁有商品選項（頭像和飼料類別不顯示此選項）
+            if (category != '頭像' && category != '飼料')
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
@@ -1207,8 +1283,8 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
     final status = item['status'] ?? (category == '頭像' ? '未擁有' : '購買');
     final isOwned = status == '已擁有';
     
-    // 調試：打印商品卡片信息
-    LoggerService.debug('構建商品卡片: $name, 圖片URL: $imageUrl, 狀態: $status, 是否擁有: $isOwned');
+    // 調試：打印卡片構建信息
+    LoggerService.debug('構建卡片 - 類別: $category, 商品: $name, 圖片URL: "$imageUrl"');
 
     // 檢查是否為選中的項目
     bool isSelected = false;
@@ -1224,6 +1300,190 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
       isSelected = _selectedFoodItem == name;
     }
 
+    // 對於飼料，使用StreamBuilder來動態顯示數量
+    if (category == '飼料') {
+      return StreamBuilder<Map<String, int>>(
+        stream: FoodService.getUserFoodInventoryStream(),
+        builder: (context, snapshot) {
+          final foodId = item['id'] ?? '';
+          final foodAmount = snapshot.hasData ? snapshot.data![foodId] ?? 0 : 0;
+          
+          return Card(
+            elevation: 3, // 飼料卡片始終有陰影
+            color: Colors.white, // 飼料卡片始終為白色
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: isSelected
+                  ? BorderSide(color: Colors.green.shade600, width: 3)
+                  : BorderSide.none,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 圖片區域
+                Expanded(
+                  flex: 3,
+                  child: GestureDetector(
+                    onTap: foodAmount > 0 ? () => _feedFood(item) : null, // 只有數量大於0才能餵食
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12),
+                        ),
+                        gradient: LinearGradient(
+                          colors: [Colors.blue.shade100, Colors.blue.shade200], // 飼料卡片始終為藍色
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(12),
+                        ),
+                        child: Stack(
+                          children: [
+                            // 圖片 - 飼料圖片顯示邏輯
+                            Builder(
+                              builder: (context) {
+                                // 調試：打印飼料圖片信息
+                                LoggerService.debug('飼料圖片顯示 - 商品: ${item['name']}, 圖片URL: "$imageUrl"');
+                                LoggerService.debug('飼料圖片顯示 - URL長度: ${imageUrl.length}, 是否為空: ${imageUrl.isEmpty}');
+                                LoggerService.debug('飼料圖片顯示 - URL是否為""字符串: ${imageUrl == '""'}');
+                                LoggerService.debug('飼料圖片顯示 - URL是否為null字符串: ${imageUrl == 'null'}');
+                                LoggerService.debug('飼料圖片顯示 - URL是否以http開頭: ${imageUrl.startsWith('http://')}');
+                                LoggerService.debug('飼料圖片顯示 - URL是否以https開頭: ${imageUrl.startsWith('https://')}');
+                                
+                                // 檢查圖片URL是否有效
+                                bool isValidUrl = imageUrl.isNotEmpty && 
+                                    imageUrl != '""' && 
+                                    imageUrl != 'null' &&
+                                    (imageUrl.startsWith('http://') || imageUrl.startsWith('https://'));
+                                
+                                LoggerService.debug('飼料圖片顯示 - URL是否有效: $isValidUrl');
+                                
+                                if (isValidUrl) {
+                                  return Image.network(
+                                    imageUrl,
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    fit: BoxFit.cover,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return Center(
+                                        child: CircularProgressIndicator(
+                                          value: loadingProgress.expectedTotalBytes != null
+                                              ? loadingProgress.cumulativeBytesLoaded /
+                                                  loadingProgress.expectedTotalBytes!
+                                              : null,
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      LoggerService.error('飼料圖片載入失敗: $error, URL: $imageUrl');
+                                      return _buildNoImagePlaceholder();
+                                    },
+                                  );
+                                } else {
+                                  LoggerService.warning('飼料圖片URL無效，顯示預設圖片: $imageUrl');
+                                  return _buildNoImagePlaceholder();
+                                }
+                              },
+                            ),
+
+                            // 飼料餵食標籤 - 只有數量大於0時顯示
+                            if (foodAmount > 0)
+                              Positioned(
+                                top: 8,
+                                left: 8,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.orange.shade600,
+                                    borderRadius: BorderRadius.circular(8),
+                                  ),
+                                  child: const Text(
+                                    '點擊餵食',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 8,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            // 飼料數量顯示 - 始終顯示，包括0
+                            Positioned(
+                              bottom: 8,
+                              right: 8,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.black.withOpacity(0.7),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.restaurant,
+                                      color: Colors.white,
+                                      size: 12,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      'x$foodAmount',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // 名稱區域
+                Expanded(
+                  flex: 1,
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    child: Text(
+                      name,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87, // 飼料名稱始終為黑色
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      );
+    } else {
+      // 非飼料類別的原有邏輯
     return Card(
       elevation: isOwned ? 3 : 1,
       color: isOwned ? Colors.white : Colors.grey.shade100,
@@ -1259,49 +1519,48 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
                   ),
                   child: Stack(
                     children: [
-                      // 圖片或影片
+                        // 圖片或影片
                       imageUrl.isNotEmpty &&
                               imageUrl != '""' &&
-                              imageUrl != 'null' &&
-                              category != '主題桌布'
-                          ? category == '特效'
-                              ? _buildEffectVideoWidget(item, isOwned)
-                              : category == '頭像'
+                                imageUrl != 'null'
+                            ? category == '特效'
+                                ? _buildEffectVideoWidget(item, isOwned)
+                                : category == '頭像'
+                                    ? Image.network(
+                                        imageUrl,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.contain,
+                                        color: isOwned ? null : Colors.grey.shade400,
+                                        colorBlendMode: isOwned
+                                            ? null
+                                            : BlendMode.saturation,
+                                        loadingBuilder:
+                                            (context, child, loadingProgress) {
+                                          if (loadingProgress == null) return child;
+                                          return Center(
+                                            child: CircularProgressIndicator(
+                                              value: loadingProgress
+                                                          .expectedTotalBytes !=
+                                                      null
+                                                  ? loadingProgress
+                                                          .cumulativeBytesLoaded /
+                                                      loadingProgress
+                                                          .expectedTotalBytes!
+                                                  : null,
+                                            ),
+                                          );
+                                        },
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return _buildNoImagePlaceholder();
+                                        },
+                                      )
+                                    : category == '主題桌布'
                           ? Image.network(
                               imageUrl,
                               width: double.infinity,
                               height: double.infinity,
-                                  fit: BoxFit.contain, // 頭像使用 contain 確保完整顯示
-                                  color: isOwned ? null : Colors.grey.shade400,
-                                  colorBlendMode: isOwned
-                                      ? null
-                                      : BlendMode.saturation,
-                                  loadingBuilder:
-                                      (context, child, loadingProgress) {
-                                        if (loadingProgress == null) return child;
-                                        return Center(
-                                          child: CircularProgressIndicator(
-                                            value:
-                                                loadingProgress
-                                                        .expectedTotalBytes !=
-                                                    null
-                                                ? loadingProgress
-                                                          .cumulativeBytesLoaded /
-                                                      loadingProgress
-                                                          .expectedTotalBytes!
-                                                : null,
-                                          ),
-                                        );
-                                      },
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return _buildNoImagePlaceholder();
-                                  },
-                                )
-                              : Image.network(
-                                  imageUrl,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover, // 其他類別使用 cover
+                              fit: BoxFit.cover,
                               color: isOwned ? null : Colors.grey.shade400,
                               colorBlendMode: isOwned
                                   ? null
@@ -1311,8 +1570,36 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
                                     if (loadingProgress == null) return child;
                                     return Center(
                                       child: CircularProgressIndicator(
-                                        value:
+                                                  value: loadingProgress
+                                                              .expectedTotalBytes !=
+                                                          null
+                                                      ? loadingProgress
+                                                              .cumulativeBytesLoaded /
                                             loadingProgress
+                                                              .expectedTotalBytes!
+                                                      : null,
+                                                ),
+                                              );
+                                            },
+                                            errorBuilder: (context, error, stackTrace) {
+                                              return _buildNoImagePlaceholder();
+                                            },
+                                          )
+                                        : Image.network(
+                                            imageUrl,
+                                            width: double.infinity,
+                                            height: double.infinity,
+                                            fit: BoxFit.cover,
+                                            color: isOwned ? null : Colors.grey.shade400,
+                                            colorBlendMode: isOwned
+                                                ? null
+                                                : BlendMode.saturation,
+                                            loadingBuilder:
+                                                (context, child, loadingProgress) {
+                                              if (loadingProgress == null) return child;
+                                              return Center(
+                                                child: CircularProgressIndicator(
+                                                  value: loadingProgress
                                                     .expectedTotalBytes !=
                                                 null
                                             ? loadingProgress
@@ -1327,8 +1614,6 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
                                 return _buildNoImagePlaceholder();
                               },
                             )
-                          : category == '主題桌布'
-                          ? _buildThemeBackgroundPlaceholder(item)
                           : _buildNoImagePlaceholder(),
                       // 未擁有標籤
                       if (!isOwned)
@@ -1354,28 +1639,57 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
                             ),
                           ),
                         ),
-                      // 選擇標籤（僅對已擁有的造型和頭像顯示）
-                      if (isOwned && (category == '造型' || category == '頭像'))
+                        // 購買量顯示
                         Positioned(
                           bottom: 8,
-                          right: 8,
-                          child: Container(
+                          left: 8,
+                          child: StreamBuilder<Map<String, int>>(
+                            stream: UserPurchaseService.getUserPurchaseCountsStream(),
+                            builder: (context, snapshot) {
+                              final itemId = item['id'] ?? '';
+                              final purchaseCount = snapshot.hasData ? snapshot.data![itemId] ?? 0 : 0;
+                              
+                              // 添加調試日誌
+                              if (snapshot.hasData) {
+                                LoggerService.info('商品 $itemId 的購買數量: $purchaseCount, 完整數據: ${snapshot.data}');
+                              }
+                              
+                              if (purchaseCount == 0) return const SizedBox.shrink();
+                              
+                              return Container(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 6,
                               vertical: 2,
                             ),
                             decoration: BoxDecoration(
-                              color: Colors.blue.shade600,
+                                  color: Colors.blue.withOpacity(0.8),
                               borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Text(
-                              '點擊選擇',
-                              style: TextStyle(
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.3),
+                                    width: 1,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.shopping_cart,
+                                      color: Colors.white,
+                                      size: 10,
+                                    ),
+                                    const SizedBox(width: 2),
+                                    Text(
+                                      '$purchaseCount',
+                                      style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 8,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                                  ],
+                                ),
+                              );
+                            },
                           ),
                         ),
                     ],
@@ -1406,6 +1720,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
         ],
       ),
     );
+    }
   }
 
   Widget _buildNoImagePlaceholder() {
@@ -1525,6 +1840,14 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
         return await _getAllAvatars();
       }
 
+      // 如果是飼料分類，顯示所有飼料（不管是否擁有）
+      if (category == '飼料') {
+        LoggerService.info('正在獲取飼料類別的所有商品...');
+        final allItems = await _getAllItemsByCategory('飼料');
+        LoggerService.info('獲取到 ${allItems.length} 個飼料商品');
+        return allItems;
+      }
+
       // 使用統一用戶資料服務獲取已擁有的商品
       LoggerService.info('正在獲取 $category 類別的已擁有商品...');
       final ownedItems = await UnifiedUserDataService.getOwnedProductsByCategory(category);
@@ -1605,20 +1928,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
     String category,
   ) async {
     try {
-      // 如果是主題桌布分類，使用統一用戶資料服務
+      // 如果是主題桌布分類，使用本地方法直接從 Firebase 獲取
       if (category == '主題桌布') {
         LoggerService.info('正在獲取主題桌布類別的所有商品...');
-        final allItems = await UnifiedUserDataService.getAllProductsByCategory('主題桌鋪');
-        
-        // 排序：已擁有的商品在前，未擁有的商品在後
-        allItems.sort((a, b) {
-          final aOwned = a['status'] == '已擁有';
-          final bOwned = b['status'] == '已擁有';
-          if (aOwned && !bOwned) return -1;
-          if (!aOwned && bOwned) return 1;
-          return 0;
-        });
-
+        final allItems = await _getAllThemeBackgrounds();
         LoggerService.info('獲取到 ${allItems.length} 個主題桌布商品');
         return allItems;
       }
@@ -1626,6 +1939,69 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
       // 如果是頭像分類，使用統一用戶資料服務
       if (category == '頭像') {
         return await UnifiedUserDataService.getAllAvatars();
+      }
+
+      // 如果是飼料類別，直接從飼料集合獲取
+      if (category == '飼料') {
+        LoggerService.info('正在從 Firebase 獲取飼料資料...');
+        
+        QuerySnapshot querySnapshot;
+        try {
+          // 直接從飼料集合獲取資料
+          LoggerService.info('正在獲取飼料集合資料...');
+          querySnapshot = await FirebaseFirestore.instance
+              .collection('飼料')
+              .get();
+          
+          LoggerService.info('總共獲取到 ${querySnapshot.docs.length} 個飼料商品');
+          
+          // 打印所有飼料的數據信息，幫助調試
+          for (final doc in querySnapshot.docs) {
+            final data = doc.data() as Map<String, dynamic>?;
+            if (data != null) {
+              final name = data['name'] ?? data['名稱'] ?? '未命名';
+              final imageUrl = data['圖片'] ?? data['imageUrl'] ?? data['image'] ?? '';
+              LoggerService.info('飼料: $name, 圖片URL: $imageUrl');
+              LoggerService.info('飼料完整數據: $data');
+            }
+          }
+        } catch (e) {
+          LoggerService.error('查詢飼料資料失敗: $e');
+          // 創建一個空的查詢結果
+          querySnapshot = await FirebaseFirestore.instance
+              .collection('飼料')
+              .limit(0)
+              .get();
+        }
+
+        final List<Map<String, dynamic>> foodItems = [];
+        for (final doc in querySnapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data == null) continue;
+          
+          // 調試：打印飼料數據信息
+          final imageUrl = data['圖片'] ?? data['imageUrl'] ?? data['image'] ?? '';
+          LoggerService.info('找到飼料: ${data['name'] ?? data['名稱']} (ID: ${doc.id})');
+          LoggerService.info('飼料圖片URL: $imageUrl');
+          LoggerService.info('飼料完整數據: $data');
+          
+          foodItems.add({
+            'id': doc.id,
+            'name': data['name'] ?? data['名稱'] ?? '未命名飼料',
+            '圖片': imageUrl,
+            'imageUrl': imageUrl,
+            'category': '飼料',
+            'status': '未擁有', // 飼料的擁有狀態由 StreamBuilder 動態判斷
+            'description': data['description'] ?? data['描述'] ?? '',
+            'price': data['price'] ?? data['價格'] ?? 0,
+          });
+        }
+        
+        LoggerService.info('總共找到 ${foodItems.length} 個飼料商品');
+        
+        // 按名稱排序
+        foodItems.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+        return foodItems;
       }
 
       // 使用統一用戶資料服務獲取所有商品
@@ -1827,19 +2203,36 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
           _showSelectionFeedback(context, itemName, itemImageUrl, category);
         }
       } else if (category == '飼料') {
-        // 保存選擇的飼料
-        await prefs.setString('selected_food_$username', itemName);
-        await prefs.setString('selected_food_image_$username', itemImageUrl);
-
-        // 更新選中狀態
-        setState(() {
-          _selectedFoodItem = itemName;
-        });
-
-        if (mounted) {
-          // 顯示視覺反饋
-          _showSelectionFeedback(context, itemName, itemImageUrl, category);
+        // 開始餵食動畫
+        final foodId = item['id'] ?? '';
+        final foodName = item['name'] ?? '未命名飼料';
+        final foodImageUrl = item['圖片'] ?? item['imageUrl'] ?? '';
+        
+        // 檢查是否有足夠的飼料
+        final hasEnough = await FoodService.hasEnoughFood(foodId, 1);
+        if (!hasEnough) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('飼料數量不足'),
+                backgroundColor: Colors.red.shade600,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
         }
+        
+        // 開始餵食動畫
+        setState(() {
+          _isFeeding = true;
+          _feedingFoodId = foodId;
+          _feedingFoodName = foodName;
+          _feedingFoodImageUrl = foodImageUrl;
+        });
+        
+        // 關閉選擇對話框
+        Navigator.of(context).pop();
       }
     } catch (e) {
       LoggerService.error('Error selecting item: $e');
@@ -2104,6 +2497,89 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
     }
   }
   
+  /// 餵食飼料
+  void _feedFood(Map<String, dynamic> item) async {
+    final foodId = item['id'] ?? '';
+    final foodName = item['name'] ?? '未命名飼料';
+    final foodImageUrl = item['圖片'] ?? item['imageUrl'] ?? '';
+    
+    // 檢查是否有足夠的飼料
+    final hasEnough = await FoodService.hasEnoughFood(foodId, 1);
+    if (!hasEnough) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('飼料數量不足'),
+            backgroundColor: Colors.red.shade600,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+    
+    // 開始餵食動畫
+    setState(() {
+      _isFeeding = true;
+      _feedingFoodId = foodId;
+      _feedingFoodName = foodName;
+      _feedingFoodImageUrl = foodImageUrl;
+    });
+    
+    // 關閉選擇對話框
+    Navigator.of(context).pop();
+  }
+
+  /// 餵食動畫完成回調
+  void _onFeedingAnimationComplete() async {
+    if (_feedingFoodId != null && _feedingFoodName != null && _feedingFoodImageUrl != null) {
+      // 執行餵食邏輯
+      final success = await FoodFeedingService.feedFood(
+        _feedingFoodId!,
+        _feedingFoodName!,
+        _feedingFoodImageUrl!,
+      );
+      
+      if (success) {
+        // 顯示餵食成功訊息
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  Icon(Icons.pets, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text('餵食成功！${_feedingFoodName}'),
+                ],
+              ),
+              backgroundColor: Colors.green.shade600,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      } else {
+        // 顯示餵食失敗訊息
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('餵食失敗，請稍後再試'),
+              backgroundColor: Colors.red.shade600,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+    }
+    
+    // 重置餵食狀態
+    setState(() {
+      _isFeeding = false;
+      _feedingFoodId = null;
+      _feedingFoodName = null;
+      _feedingFoodImageUrl = null;
+    });
+  }
+  
   /// 頭像數據變化回調
   void _onAvatarDataChanged() {
     if (mounted) {
@@ -2140,6 +2616,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
         return 'assets/MRTvedio/rain.mp4';
       case '買米買菜買冬瓜':
         return 'assets/MRTvedio/abc.mp4';
+      case '藍色狂想':
+        return 'assets/MRTvedio/blue.mp4';
+      case '文青少年':
+        return 'assets/MRTvedio/ccc.mp4';
       default:
         // 如果沒有對應的映射，返回空字串或預設影片
         LoggerService.warning('未找到特效 $effectName 的影片映射，使用預設影片');
@@ -2267,6 +2747,26 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
         ),
       ),
     );
+  }
+
+  /// 初始化飼料庫存
+  Future<void> _initializeFoodInventory() async {
+    try {
+      await FoodInitializationService.ensureFoodInventoryInitialized();
+      LoggerService.info('飼料庫存初始化完成');
+    } catch (e) {
+      LoggerService.error('飼料庫存初始化失敗: $e');
+    }
+  }
+
+  /// 初始化購買計數
+  Future<void> _initializePurchaseCounts() async {
+    try {
+      await PurchaseCountService.initializePurchaseCounts();
+      LoggerService.info('購買計數初始化完成');
+    } catch (e) {
+      LoggerService.error('購買計數初始化失敗: $e');
+    }
   }
 
   /// 獲取所有頭像

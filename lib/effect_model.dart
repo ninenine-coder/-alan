@@ -48,6 +48,10 @@ class EffectModel {
           return 'assets/MRTvedio/rain.mp4';
         case '買米買菜買冬瓜':
           return 'assets/MRTvedio/abc.mp4';
+                  case '藍色狂想':
+            return 'assets/MRTvedio/blue.mp4';
+          case '文青少年':
+            return 'assets/MRTvedio/ccc.mp4';
         default:
           // 如果沒有對應的映射，使用預設的編號方式
           return 'assets/MRTvedio/特效$number.mp4';

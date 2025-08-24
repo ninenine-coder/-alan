@@ -9,6 +9,9 @@ import 'theme_background_widget.dart';
 import 'unified_user_data_service.dart';
 import 'effect_thumbnail_widget.dart';
 import 'asset_video_player.dart';
+import 'food_service.dart';
+import 'purchase_count_service.dart';
+import 'user_purchase_service.dart';
 
 class StorePage extends StatefulWidget {
   final String? initialCategory;
@@ -129,6 +132,15 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     final uid = _currentUser!['uid'] ?? 'default';
     return FirebaseFirestore.instance.collection('users').doc(uid).snapshots();
   }
+  
+  /// 獲取用戶飼料庫存的實時流
+  Stream<Map<String, int>> _getUserFoodInventoryStream() {
+    if (_currentUser == null) {
+      return Stream.value({});
+    }
+
+    return FoodService.getUserFoodInventoryStream();
+  }
 
   /// 統一的確認對話框
   Future<void> _showConfirmDialog(
@@ -137,7 +149,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   ) async {
     final scaffoldMessenger = ScaffoldMessenger.of(context);
     final status = product['狀態'] ?? product['status'] ?? '購買';
-    final price = product['價格'] ?? product['price'] ?? 0;
+    final priceRaw = product['價格'] ?? product['price'] ?? 0;
+    final price = priceRaw is String ? int.tryParse(priceRaw) ?? 0 : (priceRaw is int ? priceRaw : 0);
 
     String title;
     String content;
@@ -231,7 +244,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
     try {
       final data = item.data() as Map<String, dynamic>;
       final name = data['name'] ?? '未命名商品';
-      final price = data['price'] ?? data['價格'] ?? 0;
+      final priceRaw = data['price'] ?? data['價格'] ?? 0;
+      final price = priceRaw is String ? int.tryParse(priceRaw) ?? 0 : (priceRaw is int ? priceRaw : 0);
       final popularity = data['常見度'] ?? data['popularity'] ?? '常見';
       final imageUrl =
           data['圖片'] ??
@@ -253,20 +267,36 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
       LoggerService.debug('  data["url"]: ${data['url']}');
       LoggerService.debug('  data["img"]: ${data['img']}');
 
-      // 檢查是否為經典款商品（任何類別且價格為0）
-      final isClassicItem = price == 0;
+                // 檢查是否為經典款商品（任何類別且價格為0）
+          final isClassicItem = price == 0;
+          
+          // 檢查是否為飼料類別（可以重複購買）
+          final isFoodCategory = category == '飼料';
 
-      return StreamBuilder<DocumentSnapshot?>(
+            return StreamBuilder<DocumentSnapshot?>(
         stream: _getUserPurchasedItemsStream(),
         builder: (context, snapshot) {
           bool isPurchased = false;
           bool isItemUnavailable = false; // 新增：檢查商品是否不可用
+          int foodAmount = 0; // 飼料數量
 
           if (snapshot.hasData && snapshot.data != null) {
             final userData = snapshot.data!.data() as Map<String, dynamic>?;
             if (userData != null) {
               final ownedProducts = Map<String, bool>.from(userData['ownedProducts'] ?? {});
               isPurchased = ownedProducts[item.id] ?? false;
+            }
+          }
+          
+          // 如果是飼料類別，獲取數量
+          if (isFoodCategory) {
+            // 暫時從用戶數據中獲取飼料庫存，稍後會改為實時流
+            if (snapshot.hasData && snapshot.data != null) {
+              final userData = snapshot.data!.data() as Map<String, dynamic>?;
+              if (userData != null) {
+                final foodInventory = Map<String, int>.from(userData['foodInventory'] ?? {});
+                foodAmount = foodInventory[item.id] ?? 0;
+              }
             }
           }
 
@@ -331,7 +361,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                       ),
 
                       // 已購買標籤
-                      if (isPurchased || isItemUnavailable)
+                      if ((isPurchased || isItemUnavailable) && !isFoodCategory)
                         Positioned(
                           top: isClassicItem ? 36 : 8, // 如果是經典款，位置下移
                           left: 8,
@@ -346,6 +376,31 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                             ),
                             child: Text(
                               '已擁有',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      
+                      // 飼料數量標籤
+                      if (isFoodCategory && foodAmount > 0)
+                        Positioned(
+                          top: isClassicItem ? 36 : 8,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade600,
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Text(
+                              'x$foodAmount',
                               style: const TextStyle(
                                 color: Colors.white,
                                 fontSize: 10,
@@ -397,7 +452,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                           width: double.infinity,
                           height: _buttonHeight,
                           child: ElevatedButton(
-                            onPressed: (isPurchased || isItemUnavailable)
+                            onPressed: ((isPurchased || isItemUnavailable) && !isFoodCategory)
                                 ? null
                                 : () => _showConfirmDialog(context, {
                                     ...data,
@@ -416,9 +471,11 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                               padding: EdgeInsets.zero,
                             ),
                             child: Text(
-                              (isPurchased || isItemUnavailable)
-                                  ? '已擁有'
-                                  : (isClassicItem ? '領取' : '購買'),
+                              (isFoodCategory) 
+                                  ? '購買'
+                                  : ((isPurchased || isItemUnavailable)
+                                      ? '已擁有'
+                                      : (isClassicItem ? '領取' : '購買')),
                               style: const TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
@@ -872,7 +929,8 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   Future<bool> _buyItem(Map<String, dynamic> product) async {
     if (_currentUser == null) return false;
 
-    final price = product['價格'] ?? product['price'] ?? 0;
+    final priceRaw = product['價格'] ?? product['price'] ?? 0;
+    final price = priceRaw is String ? int.tryParse(priceRaw) ?? 0 : (priceRaw is int ? priceRaw : 0);
     final hasEnoughCoins = await CoinService.hasEnoughCoins(price);
 
     if (!hasEnoughCoins) {
@@ -886,23 +944,56 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         final currentCategory = categories[_tabController.index];
         final itemId = product['id'] ?? '';
 
-        // 使用新的統一用戶資料服務更新商品狀態
+        // 統一處理所有商品的購買邏輯
         LoggerService.info('嘗試購買商品: ID=$itemId, 名稱=${product['name']}, 類別=$currentCategory');
-        final purchaseSuccess = await UnifiedUserDataService.purchaseProduct(itemId);
         
-        if (purchaseSuccess) {
+        // 如果是飼料類別，增加飼料數量
+        if (currentCategory == '飼料') {
+          // 更新用戶文檔中的飼料庫存
+          final uid = _currentUser!['uid'] ?? 'default';
+          final userRef = FirebaseFirestore.instance.collection('users').doc(uid);
+          
+          await FirebaseFirestore.instance.runTransaction((transaction) async {
+            final userDoc = await transaction.get(userRef);
+            if (userDoc.exists) {
+              final userData = userDoc.data() as Map<String, dynamic>;
+              final foodInventory = Map<String, int>.from(userData['foodInventory'] ?? {});
+              
+              // 增加飼料數量
+              foodInventory[itemId] = (foodInventory[itemId] ?? 0) + 1;
+              
+              transaction.update(userRef, {
+                'foodInventory': foodInventory,
+                'lastUpdated': FieldValue.serverTimestamp(),
+              });
+            } else {
+              // 如果用戶文檔不存在，創建新的
+              transaction.set(userRef, {
+                'foodInventory': {itemId: 1},
+                'lastUpdated': FieldValue.serverTimestamp(),
+              });
+            }
+          });
+        } else {
+          // 其他類別使用原有的購買邏輯
+          final purchaseSuccess = await UnifiedUserDataService.purchaseProduct(itemId);
+          
+          if (!purchaseSuccess) {
+            LoggerService.error('更新用戶庫存失敗');
+            return false;
+          }
+          
           setState(() {
             purchasedItems[product['id']] = true;
           });
-
-          _coinDisplayKey.currentState?.refreshCoins();
-
-          LoggerService.info('商品購買成功: ${product['name']} (ID: $itemId, 類別: $currentCategory)');
-          return true;
-        } else {
-          LoggerService.error('更新用戶庫存失敗');
-          return false;
         }
+        
+        // 為所有商品增加購買次數記錄
+        await UserPurchaseService.incrementPurchaseCount(itemId, product['name']);
+        
+        _coinDisplayKey.currentState?.refreshCoins();
+        LoggerService.info('商品購買成功: ${product['name']} (ID: $itemId, 類別: $currentCategory)');
+        return true;
       }
     } catch (e) {
       LoggerService.error('購買商品時發生錯誤: $e');
@@ -1096,7 +1187,7 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
   Widget _buildImageWidget(
     String imageUrl,
     String name,
-    int price,
+    dynamic price,
     String description,
     bool isClassicItem,
     String? category,
@@ -1402,6 +1493,10 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
         return 'assets/MRTvedio/rain.mp4';
       case '買米買菜買冬瓜':
         return 'assets/MRTvedio/abc.mp4';
+      case '藍色狂想':
+        return 'assets/MRTvedio/blue.mp4';
+      case '文青少年':
+        return 'assets/MRTvedio/ccc.mp4';
       default:
         // 如果沒有對應的映射，返回預設影片
         LoggerService.warning('未找到特效 $effectName 的影片映射，使用預設影片');

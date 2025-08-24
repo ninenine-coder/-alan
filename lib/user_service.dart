@@ -6,6 +6,7 @@ import 'experience_service.dart';
 import 'experience_sync_service.dart';
 import 'unified_user_data_service.dart';
 import 'avatar_service.dart';
+import 'user_purchase_service.dart';
 
 class UserService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -129,6 +130,9 @@ class UserService {
         // 初始化頭像服務（首次登入）
         await AvatarService().initializeUserAvatars();
         
+        // 初始化用戶購買記錄（首次登入）
+        await UserPurchaseService.initializePurchaseCounts();
+        
         // 記錄登入時間
         await ExperienceService.recordLoginTime();
         
@@ -235,10 +239,13 @@ class UserService {
       // 7. 檢查並解鎖頭像（每次登入）
       await AvatarService().checkAndUnlockAvatarsByLevel();
 
-      // 8. 記錄登入時間
+      // 8. 初始化用戶購買記錄（每次登入）
+      await UserPurchaseService.initializePurchaseCounts();
+
+      // 9. 記錄登入時間
       await ExperienceService.recordLoginTime();
       
-      // 9. 初始化經驗值同步
+      // 10. 初始化經驗值同步
       await ExperienceSyncService.initializeExperienceSync();
 
       return updatedData;

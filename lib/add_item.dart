@@ -45,6 +45,51 @@ Future<void> testAddMallItem() async {
   }
 }
 
+/// 添加測試飼料數據
+Future<void> addTestFoodData() async {
+  try {
+    LoggerService.info('開始添加測試飼料數據...');
+    
+    final testFoods = [
+      {
+        'name': '高級貓糧',
+        'price': 50.0,
+        'imageUrl': 'https://i.postimg.cc/VkQZ8Y9L/cat-food-1.jpg',
+        'popularity': '常見',
+        'description': '營養豐富的貓糧，適合所有年齡的貓咪',
+      },
+      {
+        'name': '特製狗糧',
+        'price': 60.0,
+        'imageUrl': 'https://i.postimg.cc/XqY8Z9L/dog-food-1.jpg',
+        'popularity': '常見',
+        'description': '專為狗狗設計的營養狗糧',
+      },
+      {
+        'name': '小魚乾',
+        'price': 30.0,
+        'imageUrl': 'https://i.postimg.cc/YqX8Z9L/fish-food-1.jpg',
+        'popularity': '常見',
+        'description': '新鮮的小魚乾，貓咪的最愛',
+      },
+    ];
+    
+    for (final food in testFoods) {
+      await addMallItem(
+        '飼料',
+        food['name'] as String,
+        food['price'] as double,
+        food['imageUrl'] as String,
+        popularity: food['popularity'] as String,
+      );
+    }
+    
+    LoggerService.info('測試飼料數據添加完成！');
+  } catch (e) {
+    LoggerService.error('添加測試飼料數據失敗: $e');
+  }
+}
+
 /// 測試讀取 Firebase 資料
 Future<void> testReadFirebaseData() async {
   try {

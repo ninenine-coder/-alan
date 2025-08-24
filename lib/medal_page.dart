@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'logger_service.dart';
 import 'theme_background_widget.dart';
 import 'user_inventory_service.dart';
+import 'unified_user_data_service.dart';
 
 class MedalPage extends StatefulWidget {
   const MedalPage({super.key});
@@ -14,7 +15,7 @@ class MedalPage extends StatefulWidget {
 
 class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
   String? _selectedFilter;
-  final List<String> _filterOptions = ['全部', '一般', '史詩', '稀有'];
+  final List<String> _filterOptions = ['全部', '已獲得', '未獲得', '傳說', '史詩', '稀有', '普通'];
   
   // 特效動畫控制器
   late AnimationController _sparkleController;
@@ -151,8 +152,6 @@ class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
     );
   }
 
-
-
   Widget _buildHeaderSection() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -193,7 +192,7 @@ class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
 
   Widget _buildMedalList() {
     return FutureBuilder<List<Map<String, dynamic>>>(
-      future: _getMedals(),
+      future: _getAllMedalsFromFirebase(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
@@ -656,24 +655,85 @@ class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<List<Map<String, dynamic>>> _getMedals() async {
+  /// 從 Firebase 直接獲取所有徽章並檢查用戶的獲得狀態
+  Future<List<Map<String, dynamic>>> _getAllMedalsFromFirebase() async {
     try {
-      // 使用 UserInventoryService 獲取用戶的徽章數據
-      final medals = await UserInventoryService.getUserCategoryItems('徽章');
+      LoggerService.info('開始從 Firebase 獲取所有徽章...');
+      
+      // 從 Firebase 獲取所有徽章
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('徽章')
+          .get();
+      
+      LoggerService.info('從 Firebase 獲取到 ${querySnapshot.docs.length} 個徽章');
+      
+      // 獲取用戶的徽章獲得狀態
+      final userMedals = await UnifiedUserDataService.getObtainedMedals();
+      final obtainedMedalIds = userMedals.map((medal) => medal['id'] as String).toSet();
+      
+      LoggerService.info('用戶已獲得 ${obtainedMedalIds.length} 個徽章');
+      
+      final List<Map<String, dynamic>> allMedals = [];
+      
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final medalId = doc.id;
+        final isObtained = obtainedMedalIds.contains(medalId);
+        
+        // 嘗試從多個可能的欄位獲取圖片 URL
+        final imageUrl = data['圖片'] ?? 
+                        data['imageUrl'] ?? 
+                        data['image'] ?? 
+                        data['url'] ?? 
+                        data['img'] ?? '';
+        
+        allMedals.add({
+          'id': medalId,
+          'name': data['name'] ?? '未命名徽章',
+          '圖片': imageUrl,
+          'imageUrl': imageUrl,
+          '稀有度': data['稀有度'] ?? data['rarity'] ?? '普通',
+          'rarity': data['稀有度'] ?? data['rarity'] ?? '普通',
+          '達成條件': data['達成條件'] ?? data['requirement'] ?? '未知條件',
+          'requirement': data['達成條件'] ?? data['requirement'] ?? '未知條件',
+          'description': data['description'] ?? '',
+          'status': isObtained ? '已獲得' : '未獲得',
+          'isObtained': isObtained,
+          'obtainedAt': isObtained ? data['obtainedAt'] : null,
+        });
+        
+        LoggerService.debug('徽章: ${data['name']}, ID: $medalId, 狀態: ${isObtained ? '已獲得' : '未獲得'}');
+      }
+      
+      // 應用篩選
+      List<Map<String, dynamic>> filteredMedals = allMedals;
       
       if (_selectedFilter != null && _selectedFilter != '全部') {
-        if (_selectedFilter == '一般') {
-          medals.removeWhere((medal) => medal['稀有度'] != '一般' && medal['稀有度'] != '普通');
-        } else if (_selectedFilter == '史詩') {
-          medals.removeWhere((medal) => medal['稀有度'] != '史詩');
-        } else if (_selectedFilter == '稀有') {
-          medals.removeWhere((medal) => medal['稀有度'] != '稀有');
+        switch (_selectedFilter) {
+          case '已獲得':
+            filteredMedals = allMedals.where((medal) => medal['status'] == '已獲得').toList();
+            break;
+          case '未獲得':
+            filteredMedals = allMedals.where((medal) => medal['status'] == '未獲得').toList();
+            break;
+          case '傳說':
+            filteredMedals = allMedals.where((medal) => medal['稀有度'] == '傳說').toList();
+            break;
+          case '史詩':
+            filteredMedals = allMedals.where((medal) => medal['稀有度'] == '史詩').toList();
+            break;
+          case '稀有':
+            filteredMedals = allMedals.where((medal) => medal['稀有度'] == '稀有').toList();
+            break;
+          case '普通':
+            filteredMedals = allMedals.where((medal) => medal['稀有度'] == '普通').toList();
+            break;
         }
       }
       
       // 排序：已獲得的徽章在前，未獲得的在後
       // 在已獲得和未獲得的分組內，按稀有度排序
-      medals.sort((a, b) {
+      filteredMedals.sort((a, b) {
         final aObtained = a['status'] == '已獲得';
         final bObtained = b['status'] == '已獲得';
         
@@ -701,9 +761,10 @@ class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
         return 0;
       });
       
-      return medals;
+      LoggerService.info('篩選後共有 ${filteredMedals.length} 個徽章');
+      return filteredMedals;
     } catch (e) {
-      LoggerService.error('Error getting medals: $e');
+      LoggerService.error('從 Firebase 獲取徽章失敗: $e');
       return [];
     }
   }
@@ -713,7 +774,7 @@ class _MedalPageState extends State<MedalPage> with TickerProviderStateMixin {
     final imageUrl = medal['圖片'] ?? medal['imageUrl'] ?? '';
     final rarity = medal['稀有度'] ?? medal['rarity'] ?? '普通';
     final requirement = medal['達成條件'] ?? medal['requirement'] ?? '未知條件';
-    final isObtained = medal['isObtained'] as bool? ?? false;
+    final isObtained = medal['status'] == '已獲得' || medal['isObtained'] == true;
     
     showDialog(
       context: context,

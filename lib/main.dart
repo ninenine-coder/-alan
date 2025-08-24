@@ -11,6 +11,7 @@ import 'logger_service.dart';
 import 'experience_service.dart';
 import 'experience_sync_service.dart';
 import 'store_page.dart';
+import 'test_food_data.dart';
 
 
 // 為了處理 SSL 驗證問題 (相當於 Python 的 verify=False)
@@ -136,6 +137,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
           }
           return StorePage(initialCategory: initialCategory);
         },
+        '/test_food': (context) => const TestFoodDataPage(),
       },
     );
   }

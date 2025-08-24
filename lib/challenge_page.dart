@@ -489,18 +489,7 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Colors.blue.shade600, Colors.blue.shade800],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 2),
-          ),
-        ],
+        color: Colors.transparent,
       ),
       child: Column(
         children: [
@@ -529,7 +518,7 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
                 child: Text(
                   '挑戰任務',
                   style: TextStyle(
-                    color: Colors.white,
+                    color: Colors.black87,
                     fontWeight: FontWeight.bold,
                     fontSize: 20,
                   ),
@@ -549,7 +538,7 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
             child: TabBar(
               controller: _tabController,
               indicator: BoxDecoration(
-                color: Colors.white,
+                color: Colors.blue.shade600,
                 borderRadius: BorderRadius.circular(25),
                 boxShadow: [
                   BoxShadow(
@@ -559,8 +548,8 @@ class _ChallengePageState extends State<ChallengePage> with SingleTickerProvider
                   ),
                 ],
               ),
-              labelColor: Colors.blue.shade800,
-              unselectedLabelColor: Colors.white,
+              labelColor: Colors.white,
+              unselectedLabelColor: Colors.black87,
               labelStyle: const TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 16,

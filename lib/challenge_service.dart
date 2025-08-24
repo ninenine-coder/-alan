@@ -13,9 +13,7 @@ class ChallengeService {
   static const String _lastMessageDateKey = 'last_message_date';
   
   // 挑戰任務類型
-  static const String taskMetroCheckin = 'metro_checkin';
   static const String taskPetInteraction = 'pet_interaction';
-  static const String taskRouteExploration = 'route_exploration';
   static const String taskDailyMessage = 'daily_message';
   
   // 每周任務類型
@@ -24,24 +22,10 @@ class ChallengeService {
 
   // 每日任務配置
   static final Map<String, DailyTask> dailyTaskConfigs = {
-    taskMetroCheckin: DailyTask(
-      id: taskMetroCheckin,
-      title: '在任意捷運站打卡',
-      description: '上傳照片到聊天頁面，當圖片中出現台北捷運標示時自動完成',
-      reward: 5,
-      maxDailyClaims: 1,
-    ),
     taskPetInteraction: DailyTask(
       id: taskPetInteraction,
       title: '與桌寵完成互動',
       description: '前往桌寵頁面，點擊桌寵模型完成互動',
-      reward: 5,
-      maxDailyClaims: 1,
-    ),
-    taskRouteExploration: DailyTask(
-      id: taskRouteExploration,
-      title: '路線探索',
-      description: '完成路線探索任務（功能開發中）',
       reward: 5,
       maxDailyClaims: 1,
     ),
@@ -370,18 +354,7 @@ class ChallengeService {
     await prefs.setString(tasksKey, jsonEncode(tasksData));
   }
 
-  // 處理捷運打卡任務
-  static Future<bool> handleMetroCheckin() async {
-    // 檢查挑戰任務功能是否已解鎖
-    if (!await isChallengeFeatureUnlocked()) {
-      return false; // 功能未解鎖，不給予獎勵
-    }
 
-    if (await canClaimReward(taskMetroCheckin)) {
-      return await claimReward(taskMetroCheckin);
-    }
-    return false;
-  }
 
   // 處理桌寵互動任務
   static Future<bool> handlePetInteraction() async {

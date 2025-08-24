@@ -455,54 +455,21 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
           });
           await _saveMessages();
 
-          try {
-            final isMetroImage = await _checkMetroImage(image.path);
-            if (isMetroImage) {
-              try {
-                final metroReward = await ChallengeService.handleMetroCheckin();
-                if (metroReward) {
-                  _coinDisplayKey.currentState?.refreshCoins();
+          final response = await ChatService.sendMessage('我上傳了一張圖片');
+          final aiMessage = ChatMessage(
+            text: response,
+            isUser: false,
+            time: DateTime.now(),
+          );
 
-                  final aiResponse = ChatMessage(
-                    text: '完成每日挑戰，請自挑戰任務領取獎勵',
-                    isUser: false,
-                    time: DateTime.now(),
-                  );
+          setState(() {
+            _isTyping = false;
+            _messages.add(aiMessage);
+            _listKey.currentState?.insertItem(_messages.length - 1);
+          });
+          await _saveMessages();
 
-                  setState(() {
-                    _isTyping = false;
-                    _messages.add(aiResponse);
-                    _listKey.currentState?.insertItem(_messages.length - 1);
-                  });
-                  await _saveMessages();
-                }
-              } catch (e) {
-                if (mounted) {
-                  _showWarningSnackBar('處理挑戰任務時發生錯誤: $e');
-                }
-              }
-            } else {
-              final response = await ChatService.sendMessage('我上傳了一張圖片');
-              final aiMessage = ChatMessage(
-                text: response,
-                isUser: false,
-                time: DateTime.now(),
-              );
-
-              setState(() {
-                _isTyping = false;
-                _messages.add(aiMessage);
-                _listKey.currentState?.insertItem(_messages.length - 1);
-              });
-              await _saveMessages();
-            }
-
-            _scrollToBottom();
-          } catch (e) {
-            if (mounted) {
-              _showWarningSnackBar('檢查圖片時發生錯誤: $e');
-            }
-          }
+          _scrollToBottom();
         }
       }
     } catch (e) {
@@ -512,10 +479,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     }
   }
 
-  Future<bool> _checkMetroImage(String imagePath) async {
-    await Future.delayed(const Duration(seconds: 1));
-    return DateTime.now().millisecondsSinceEpoch % 3 == 0;
-  }
+
 
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
