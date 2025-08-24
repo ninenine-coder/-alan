@@ -5,6 +5,7 @@ import 'data_service.dart';
 import 'experience_service.dart';
 import 'experience_sync_service.dart';
 import 'unified_user_data_service.dart';
+import 'avatar_service.dart';
 
 class UserService {
   static final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -59,10 +60,13 @@ class UserService {
       // 4. 初始化用戶統一資料（首次註冊）
       await UnifiedUserDataService.initializeUserData();
       
-      // 5. 記錄登入時間
+      // 5. 初始化頭像服務（首次註冊）
+      await AvatarService().initializeUserAvatars();
+      
+      // 6. 記錄登入時間
       await ExperienceService.recordLoginTime();
       
-      // 6. 初始化經驗值同步
+      // 7. 初始化經驗值同步
       await ExperienceSyncService.initializeExperienceSync();
 
       return true;
@@ -122,6 +126,9 @@ class UserService {
         // 初始化用戶統一資料（首次登入）
         await UnifiedUserDataService.initializeUserData();
         
+        // 初始化頭像服務（首次登入）
+        await AvatarService().initializeUserAvatars();
+        
         // 記錄登入時間
         await ExperienceService.recordLoginTime();
         
@@ -150,13 +157,16 @@ class UserService {
       // 5. 初始化用戶統一資料（如果需要）
       await UnifiedUserDataService.initializeUserData();
 
-      // 6. 檢查並解鎖頭像（每次登入）
-      await UnifiedUserDataService.unlockAvatarsByLevel();
+      // 6. 初始化頭像服務（每次登入）
+      await AvatarService().initializeUserAvatars();
 
-      // 7. 記錄登入時間
+      // 7. 檢查並解鎖頭像（每次登入）
+      await AvatarService().checkAndUnlockAvatarsByLevel();
+
+      // 8. 記錄登入時間
       await ExperienceService.recordLoginTime();
       
-      // 8. 初始化經驗值同步
+      // 9. 初始化經驗值同步
       await ExperienceSyncService.initializeExperienceSync();
 
       return updatedData;
@@ -219,13 +229,16 @@ class UserService {
       // 5. 初始化用戶統一資料（如果需要）
       await UnifiedUserDataService.initializeUserData();
 
-      // 6. 檢查並解鎖頭像（每次登入）
-      await UnifiedUserDataService.unlockAvatarsByLevel();
+      // 6. 初始化頭像服務（每次登入）
+      await AvatarService().initializeUserAvatars();
 
-      // 7. 記錄登入時間
+      // 7. 檢查並解鎖頭像（每次登入）
+      await AvatarService().checkAndUnlockAvatarsByLevel();
+
+      // 8. 記錄登入時間
       await ExperienceService.recordLoginTime();
       
-      // 8. 初始化經驗值同步
+      // 9. 初始化經驗值同步
       await ExperienceSyncService.initializeExperienceSync();
 
       return updatedData;

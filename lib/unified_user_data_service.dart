@@ -100,70 +100,28 @@ class UnifiedUserDataService {
       final experienceData = await ExperienceService.getCurrentExperience();
       final currentLevel = experienceData['level'] as int;
       
-      // 從 Firebase 獲取所有頭像資料
-      final avatarSnapshot = await FirebaseFirestore.instance
-          .collection('頭像')
-          .get();
+      LoggerService.info('開始初始化頭像，用戶等級: $currentLevel');
       
-      // 頭像等級解鎖配置（使用 Firebase 中的實際 ID）
-      final levelAvatarUnlocks = <int, String>{};
+      // 使用與 AvatarService 一致的等級解鎖配置
+      const Map<int, String> levelAvatarUnlocks = {
+        1: '頭像3',   // 首次登入獲得頭像3
+        11: '頭像2',  // 等級11獲得頭像2
+        21: '頭像4',  // 等級21獲得頭像4
+        31: '頭像5',  // 等級31獲得頭像5
+        41: '頭像6',  // 等級41獲得頭像6
+      };
       
-      // 根據 Firebase 中的頭像資料建立等級解鎖配置
-      for (final doc in avatarSnapshot.docs) {
-        final data = doc.data();
-        final avatarId = doc.id;
+      // 初始化所有頭像狀態
+      for (final entry in levelAvatarUnlocks.entries) {
+        final avatarId = entry.value;
+        final requiredLevel = entry.key;
+        final isUnlocked = currentLevel >= requiredLevel;
         
-        // 記錄頭像資訊以供調試
-        LoggerService.info('Firebase 頭像資料: ID=${doc.id}, name=${data['name']}, 完整資料: $data');
-        
-        // 簡化的等級解鎖機制：等級1獲得第一個頭像，之後每隔10等獲得下一個頭像
-        final avatarName = data['name'] ?? '';
-        
-        // 根據頭像名稱或ID來判斷等級解鎖
-        if (avatarName == '見習旅人' || avatarName == '頭像2' || avatarId.contains('avatar_1') || doc.id == 'avatar_1') {
-          levelAvatarUnlocks[1] = avatarId;
-          LoggerService.info('設定等級1頭像: $avatarName (ID: $avatarId)');
-        } else if (avatarName == '城市巡查員' || avatarName == '頭像3' || avatarId.contains('avatar_2') || doc.id == 'avatar_2') {
-          levelAvatarUnlocks[11] = avatarId;
-          LoggerService.info('設定等級11頭像: $avatarName (ID: $avatarId)');
-        } else if (avatarName == '路線研究員' || avatarName == '頭像4' || avatarId.contains('avatar_3') || doc.id == 'avatar_3') {
-          levelAvatarUnlocks[21] = avatarId;
-          LoggerService.info('設定等級21頭像: $avatarName (ID: $avatarId)');
-        } else if (avatarName == '夜行攝影' || avatarName == '頭像5' || avatarId.contains('avatar_4') || doc.id == 'avatar_4') {
-          levelAvatarUnlocks[31] = avatarId;
-          LoggerService.info('設定等級31頭像: $avatarName (ID: $avatarId)');
-        } else if (avatarName == '終極協調員' || avatarName == '頭像6' || avatarId.contains('avatar_5') || doc.id == 'avatar_5') {
-          levelAvatarUnlocks[41] = avatarId;
-          LoggerService.info('設定等級41頭像: $avatarName (ID: $avatarId)');
-        }
-        // 可以繼續添加更多頭像...
+        avatars[avatarId] = isUnlocked;
+        LoggerService.info('頭像 $avatarId 等級要求: $requiredLevel, 當前等級: $currentLevel, 是否解鎖: $isUnlocked');
       }
       
-             // 初始化所有頭像狀態
-       for (final doc in avatarSnapshot.docs) {
-         final avatarId = doc.id;
-         
-         // 檢查是否在等級解鎖配置中
-         bool isUnlocked = false;
-         for (final entry in levelAvatarUnlocks.entries) {
-           if (entry.value == avatarId) {
-             isUnlocked = currentLevel >= entry.key;
-             LoggerService.info('頭像 $avatarId 等級要求: ${entry.key}, 當前等級: $currentLevel, 是否解鎖: $isUnlocked');
-             break;
-           }
-         }
-         
-         // 如果沒有找到等級配置，默認不解鎖
-         if (!levelAvatarUnlocks.containsValue(avatarId)) {
-           isUnlocked = false;
-           LoggerService.info('頭像 $avatarId 沒有等級配置，設為未解鎖');
-         }
-         
-         avatars[avatarId] = isUnlocked;
-         LoggerService.info('設置頭像 $avatarId 狀態為: $isUnlocked');
-       }
-      
-      LoggerService.info('初始化頭像，用戶等級: $currentLevel，頭像數量: ${avatars.length}');
+      LoggerService.info('初始化頭像完成，用戶等級: $currentLevel，解鎖頭像數量: ${avatars.values.where((unlocked) => unlocked).length}');
     } catch (e) {
       LoggerService.error('初始化頭像失敗: $e');
       // 如果獲取失敗，返回空 map
@@ -340,36 +298,43 @@ class UnifiedUserDataService {
         for (final doc in avatarSnapshot.docs) {
           final avatarId = doc.id;
           final data = doc.data();
-                    final requiredLevel = await _getAvatarUnlockLevel(avatarId);
-          final canUnlock = currentLevel >= requiredLevel;
-           
-           // 檢查是否擁有（包括即時解鎖）
-           bool isOwned = avatars[avatarId] ?? false;
-           if (canUnlock && !isOwned) {
-             // 如果達到等級但尚未解鎖，立即更新狀態
-             isOwned = true;
-             LoggerService.info('即時解鎖頭像: ${data['name']} (等級 $currentLevel >= $requiredLevel)');
-           }
-           
-           LoggerService.info('檢查頭像 $avatarId: 是否擁有 = $isOwned, 等級要求 = $requiredLevel, 當前等級 = $currentLevel');
-           
-           if (isOwned) {
-             LoggerService.info('添加已擁有的頭像: ${data['name']} (ID: $avatarId)');
-             unlockedList.add({
-               'id': avatarId,
-               'name': data['name'] ?? '未命名頭像',
-               '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
-               'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
-               'category': '頭像',
-               'status': '已擁有',
-               'description': data['description'] ?? '',
-               'unlockLevel': requiredLevel,
-             });
-           }
-         }
-       } catch (e) {
-         LoggerService.error('獲取頭像資料失敗: $e');
-       }
+          
+          // 從 Firebase 讀取等級要求
+          final levelRequirement = data['等級要求'] ?? data['levelRequirement'] ?? 0;
+          int requiredLevel;
+          
+          if (levelRequirement is int) {
+            requiredLevel = levelRequirement;
+          } else if (levelRequirement is String) {
+            requiredLevel = int.tryParse(levelRequirement) ?? 0;
+          } else {
+            // 如果 Firebase 中沒有等級要求，使用預設邏輯
+            requiredLevel = await _getAvatarUnlockLevel(avatarId);
+          }
+          
+          // 根據等級判斷：如果用戶等級 >= 頭像要求等級，則為已擁有
+          bool isOwned = currentLevel >= requiredLevel;
+          
+          LoggerService.info('檢查頭像 $avatarId: Firebase等級要求 = $levelRequirement, 最終等級要求 = $requiredLevel, 當前等級 = $currentLevel, 是否擁有 = $isOwned');
+          
+          if (isOwned) {
+            LoggerService.info('添加已擁有的頭像: ${data['name']} (ID: $avatarId)');
+            unlockedList.add({
+              'id': avatarId,
+              'name': data['name'] ?? '未命名頭像',
+              '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
+              'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
+              'avatar_no_bg': data['avatar_no_bg'] ?? data['無背景'] ?? '',
+              'category': '頭像',
+              'status': '已擁有',
+              'description': data['description'] ?? '',
+              'unlockLevel': requiredLevel,
+            });
+          }
+        }
+      } catch (e) {
+        LoggerService.error('獲取頭像資料失敗: $e');
+      }
 
       LoggerService.info('獲取已解鎖頭像: ${unlockedList.length} 個');
       return unlockedList;
@@ -510,44 +475,16 @@ class UnifiedUserDataService {
       final experienceData = await ExperienceService.getCurrentExperience();
       final currentLevel = experienceData['level'] as int;
 
-      // 從 Firebase 獲取所有頭像資料
-      final avatarSnapshot = await FirebaseFirestore.instance
-          .collection('頭像')
-          .get();
+      LoggerService.info('開始檢查頭像解鎖，用戶等級: $currentLevel');
 
-      // 頭像等級解鎖配置（使用 Firebase 中的實際 ID）
-      final levelAvatarUnlocks = <int, String>{};
-      
-      // 根據 Firebase 中的頭像資料建立等級解鎖配置
-      for (final doc in avatarSnapshot.docs) {
-        final data = doc.data();
-        final avatarId = doc.id;
-        
-        // 記錄頭像資訊以供調試
-        LoggerService.info('Firebase 頭像資料: ID=${doc.id}, name=${data['name']}, 完整資料: $data');
-        
-        // 簡化的等級解鎖機制：等級1獲得第一個頭像，之後每隔10等獲得下一個頭像
-        final avatarName = data['name'] ?? '';
-        
-        // 根據頭像名稱或ID來判斷等級解鎖
-        if (avatarName == '見習旅人' || avatarName == '頭像2' || avatarId.contains('avatar_1') || doc.id == 'avatar_1') {
-          levelAvatarUnlocks[1] = avatarId;
-          LoggerService.info('設定等級1頭像: $avatarName (ID: $avatarId)');
-        } else if (avatarName == '城市巡查員' || avatarName == '頭像3' || avatarId.contains('avatar_2') || doc.id == 'avatar_2') {
-          levelAvatarUnlocks[11] = avatarId;
-          LoggerService.info('設定等級11頭像: $avatarName (ID: $avatarId)');
-        } else if (avatarName == '路線研究員' || avatarName == '頭像4' || avatarId.contains('avatar_3') || doc.id == 'avatar_3') {
-          levelAvatarUnlocks[21] = avatarId;
-          LoggerService.info('設定等級21頭像: $avatarName (ID: $avatarId)');
-        } else if (avatarName == '夜行攝影' || avatarName == '頭像5' || avatarId.contains('avatar_4') || doc.id == 'avatar_4') {
-          levelAvatarUnlocks[31] = avatarId;
-          LoggerService.info('設定等級31頭像: $avatarName (ID: $avatarId)');
-        } else if (avatarName == '終極協調員' || avatarName == '頭像6' || avatarId.contains('avatar_5') || doc.id == 'avatar_5') {
-          levelAvatarUnlocks[41] = avatarId;
-          LoggerService.info('設定等級41頭像: $avatarName (ID: $avatarId)');
-        }
-        // 可以繼續添加更多頭像...
-      }
+      // 使用與 AvatarService 一致的等級解鎖配置
+      const Map<int, String> levelAvatarUnlocks = {
+        1: '頭像3',   // 首次登入獲得頭像3
+        11: '頭像2',  // 等級11獲得頭像2
+        21: '頭像4',  // 等級21獲得頭像4
+        31: '頭像5',  // 等級31獲得頭像5
+        41: '頭像6',  // 等級41獲得頭像6
+      };
 
       // 獲取當前頭像狀態
       final userDoc = await FirebaseFirestore.instance
@@ -569,13 +506,18 @@ class UnifiedUserDataService {
         if (currentLevel >= requiredLevel && !(currentAvatars[avatarId] ?? false)) {
           updates['avatars.$avatarId'] = true;
           
-          // 獲取頭像名稱用於日誌
-          final avatarDoc = avatarSnapshot.docs.firstWhere(
-            (doc) => doc.id == avatarId,
-            orElse: () => avatarSnapshot.docs.first,
-          );
-          final avatarName = avatarDoc.data()['name'] ?? avatarId;
+          // 獲取頭像顯示名稱
+          final avatarDisplayNames = {
+            '頭像2': '城市巡查員',
+            '頭像3': '路線研究員',
+            '頭像4': '夜行攝影',
+            '頭像5': '終極協調員',
+            '頭像6': '大師旅人',
+            '頭像7': '傳奇探險家',
+            '頭像8': '無敵勇者',
+          };
           
+          final avatarName = avatarDisplayNames[avatarId] ?? avatarId;
           LoggerService.info('解鎖頭像: $avatarName (ID: $avatarId, 等級 $currentLevel >= $requiredLevel)');
         }
       }
@@ -588,6 +530,8 @@ class UnifiedUserDataService {
             .update(updates);
 
         LoggerService.info('根據等級解鎖頭像完成: ${updates.length} 個頭像');
+      } else {
+        LoggerService.info('沒有新的頭像需要解鎖');
       }
     } catch (e) {
       LoggerService.error('根據等級解鎖頭像失敗: $e');
@@ -607,21 +551,81 @@ class UnifiedUserDataService {
 
       final data = avatarDoc.data()!;
       final avatarName = data['name'] ?? '';
+      final levelRequirement = data['等級要求'] ?? data['levelRequirement'] ?? 0;
 
-      // 根據頭像名稱返回對應的等級（簡化機制）
-      if (avatarName == '見習旅人' || avatarName == '頭像2') {
-        return 1;
-      } else if (avatarName == '城市巡查員' || avatarName == '頭像3') {
-        return 11;
-      } else if (avatarName == '路線研究員' || avatarName == '頭像4') {
-        return 21;
-      } else if (avatarName == '夜行攝影' || avatarName == '頭像5') {
-        return 31;
-      } else if (avatarName == '終極協調員' || avatarName == '頭像6') {
-        return 41;
+      LoggerService.info('檢查頭像等級要求 - ID: $avatarId, 名稱: $avatarName, Firebase等級要求: $levelRequirement');
+
+      // 直接從 Firebase 讀取等級要求
+      if (levelRequirement is int) {
+        LoggerService.info('頭像 $avatarName 等級要求: $levelRequirement (從Firebase讀取)');
+        return levelRequirement;
+      } else if (levelRequirement is String) {
+        // 如果是字符串，嘗試轉換為數字
+        final level = int.tryParse(levelRequirement);
+        if (level != null) {
+          LoggerService.info('頭像 $avatarName 等級要求: $level (從Firebase字符串轉換)');
+          return level;
+        }
       }
 
-      return 0;
+      // 如果 Firebase 中沒有等級要求資料，使用預設邏輯
+      LoggerService.warning('Firebase中沒有找到等級要求資料，使用預設邏輯');
+      
+      // 根據頭像名稱返回對應的等級（預設邏輯）
+      switch (avatarName) {
+        case '見習旅人':
+          LoggerService.info('頭像 $avatarName 等級要求: 1 (預設)');
+          return 1;
+        case '城市巡查員':
+          LoggerService.info('頭像 $avatarName 等級要求: 11 (預設)');
+          return 11;
+        case '路線研究員':
+          LoggerService.info('頭像 $avatarName 等級要求: 1 (預設)'); // 首次登入獲得
+          return 1;
+        case '夜行攝影':
+          LoggerService.info('頭像 $avatarName 等級要求: 21 (預設)');
+          return 21;
+        case '終極協調員':
+          LoggerService.info('頭像 $avatarName 等級要求: 31 (預設)');
+          return 31;
+        case '大師旅人':
+          LoggerService.info('頭像 $avatarName 等級要求: 41 (預設)');
+          return 41;
+        case '傳奇探險家':
+          LoggerService.info('頭像 $avatarName 等級要求: 51 (預設)');
+          return 51;
+        case '無敵勇者':
+          LoggerService.info('頭像 $avatarName 等級要求: 61 (預設)');
+          return 61;
+        default:
+          // 如果名稱不匹配，嘗試根據ID判斷
+          switch (avatarId) {
+            case '頭像2':
+              LoggerService.info('頭像 $avatarId 等級要求: 11 (預設)');
+              return 11;
+            case '頭像3':
+              LoggerService.info('頭像 $avatarId 等級要求: 1 (預設)'); // 首次登入獲得
+              return 1;
+            case '頭像4':
+              LoggerService.info('頭像 $avatarId 等級要求: 21 (預設)');
+              return 21;
+            case '頭像5':
+              LoggerService.info('頭像 $avatarId 等級要求: 31 (預設)');
+              return 31;
+            case '頭像6':
+              LoggerService.info('頭像 $avatarId 等級要求: 41 (預設)');
+              return 41;
+            case '頭像7':
+              LoggerService.info('頭像 $avatarId 等級要求: 51 (預設)');
+              return 51;
+            case '頭像8':
+              LoggerService.info('頭像 $avatarId 等級要求: 61 (預設)');
+              return 61;
+            default:
+              LoggerService.warning('未知頭像ID: $avatarId，設置等級要求為0');
+              return 0;
+          }
+      }
     } catch (e) {
       LoggerService.error('獲取頭像解鎖等級失敗: $e');
       return 0;
@@ -825,22 +829,33 @@ class UnifiedUserDataService {
         for (final doc in avatarSnapshot.docs) {
           final avatarId = doc.id;
           final data = doc.data();
-          final requiredLevel = await _getAvatarUnlockLevel(avatarId);
+          
+          // 從 Firebase 讀取等級要求
+          final levelRequirement = data['等級要求'] ?? data['levelRequirement'] ?? 0;
+          int requiredLevel;
+          
+          if (levelRequirement is int) {
+            requiredLevel = levelRequirement;
+          } else if (levelRequirement is String) {
+            requiredLevel = int.tryParse(levelRequirement) ?? 0;
+          } else {
+            // 如果 Firebase 中沒有等級要求，使用預設邏輯
+            requiredLevel = await _getAvatarUnlockLevel(avatarId);
+          }
+          
           final canUnlock = currentLevel >= requiredLevel;
           
-          // 檢查是否應該解鎖（基於當前等級）
-          bool isUnlocked = avatars[avatarId] ?? false;
-          if (canUnlock && !isUnlocked) {
-            // 如果達到等級但尚未解鎖，立即更新狀態
-            isUnlocked = true;
-            LoggerService.info('即時解鎖頭像: ${data['name']} (等級 $currentLevel >= $requiredLevel)');
-          }
+          // 根據等級判斷：如果用戶等級 >= 頭像要求等級，則為已擁有
+          bool isUnlocked = currentLevel >= requiredLevel;
+          
+          LoggerService.info('檢查頭像 $avatarId: Firebase等級要求 = $levelRequirement, 最終等級要求 = $requiredLevel, 當前等級 = $currentLevel, 是否擁有 = $isUnlocked');
           
           allList.add({
             'id': avatarId,
             'name': data['name'] ?? '未命名頭像',
             '圖片': data['圖片'] ?? data['imageUrl'] ?? '',
             'imageUrl': data['圖片'] ?? data['imageUrl'] ?? '',
+            'avatar_no_bg': data['avatar_no_bg'] ?? data['無背景'] ?? '',
             'category': '頭像',
             'status': isUnlocked ? '已擁有' : (canUnlock ? '可解鎖' : '未解鎖'),
             'description': data['description'] ?? '',

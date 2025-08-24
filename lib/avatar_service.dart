@@ -5,13 +5,13 @@ import 'experience_service.dart';
 import 'logger_service.dart';
 
 class AvatarService extends ChangeNotifier {
-  // 等級解鎖頭像配置
+  // 等級解鎖頭像配置 - 修改為特定等級獲得特定頭像
   static const Map<int, String> _levelAvatarUnlocks = {
-    1: 'avatar3',   // 等級1時獲得頭像3
-    5: 'avatar2',   // 等級5時獲得頭像2
-    11: 'avatar4',  // 等級11時獲得頭像4
-    21: 'avatar5',  // 等級21時獲得頭像5
-    31: 'avatar6',  // 等級31時獲得頭像6
+    1: 'avatar3', // 首次登入獲得頭像3
+    11: 'avatar2', // 等級11獲得頭像2
+    21: 'avatar4', // 等級21獲得頭像4
+    31: 'avatar5', // 等級31獲得頭像5
+    41: 'avatar6', // 等級41獲得頭像6
   };
   
   // 單例模式
@@ -21,20 +21,26 @@ class AvatarService extends ChangeNotifier {
 
   // 頭像顯示名稱映射
   static const Map<String, String> _avatarDisplayNames = {
-    'avatar2': '見習旅人',
-    'avatar3': '見習旅人',
-    'avatar4': '資深旅人',
-    'avatar5': '專家旅人',
+    'avatar1': '見習旅人',
+    'avatar2': '城市巡查員',
+    'avatar3': '路線研究員',
+    'avatar4': '夜行攝影',
+    'avatar5': '終極協調員',
     'avatar6': '大師旅人',
+    'avatar7': '傳奇探險家',
+    'avatar8': '無敵勇者',
   };
 
   // 頭像圖片URL映射
   static const Map<String, String> _avatarImageUrls = {
+    'avatar1': 'https://i.postimg.cc/L5PW2Tby/image.jpg',
     'avatar2': 'https://i.postimg.cc/L5PW2Tby/image.jpg',
     'avatar3': 'https://i.postimg.cc/L5PW2Tby/image.jpg',
     'avatar4': 'https://i.postimg.cc/L5PW2Tby/image.jpg',
     'avatar5': 'https://i.postimg.cc/L5PW2Tby/image.jpg',
     'avatar6': 'https://i.postimg.cc/L5PW2Tby/image.jpg',
+    'avatar7': 'https://i.postimg.cc/L5PW2Tby/image.jpg',
+    'avatar8': 'https://i.postimg.cc/L5PW2Tby/image.jpg',
   };
 
   /// 首次登入時初始化用戶頭像資料
@@ -69,7 +75,7 @@ class AvatarService extends ChangeNotifier {
       final experienceData = await ExperienceService.getCurrentExperience();
       final currentLevel = experienceData['level'] as int;
 
-      // 初始化頭像資料
+      // 初始化頭像資料 - 登入時獲得第一個頭像
       final avatars = <String, bool>{};
       for (final entry in _levelAvatarUnlocks.entries) {
         final avatarId = entry.value;
@@ -117,7 +123,7 @@ class AvatarService extends ChangeNotifier {
       final updatedAvatars = Map<String, bool>.from(currentAvatars);
       bool hasChanges = false;
 
-      // 檢查需要解鎖的頭像
+      // 檢查需要解鎖的頭像 - 每隔10級解鎖一個
       for (final entry in _levelAvatarUnlocks.entries) {
         final avatarId = entry.value;
         final requiredLevel = entry.key;
@@ -334,5 +340,20 @@ class AvatarService extends ChangeNotifier {
   /// 獲取頭像圖片URL
   static String getAvatarImageUrl(String avatarId) {
     return _avatarImageUrls[avatarId] ?? '';
+  }
+
+  /// 獲取頭像解鎖進度信息
+  static Map<String, dynamic> getAvatarUnlockProgress(int currentLevel) {
+    final totalAvatars = _levelAvatarUnlocks.length;
+    final unlockedAvatars = getUnlockableAvatarsByLevel(currentLevel).length;
+    final nextAvatar = getNextUnlockableAvatar(currentLevel);
+    
+    return {
+      'totalAvatars': totalAvatars,
+      'unlockedAvatars': unlockedAvatars,
+      'progress': unlockedAvatars / totalAvatars,
+      'nextAvatar': nextAvatar,
+      'currentLevel': currentLevel,
+    };
   }
 }

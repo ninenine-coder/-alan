@@ -23,7 +23,7 @@ class PetPage extends StatefulWidget {
   State<PetPage> createState() => _PetPageState();
 }
 
-class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
+class _PetPageState extends State<PetPage> with TickerProviderStateMixin, WidgetsBindingObserver {
   late String petName;
   final GlobalKey<CoinDisplayState> _coinDisplayKey =
       GlobalKey<CoinDisplayState>();
@@ -37,12 +37,23 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   String? _selectedThemeItem; // 選中的主題桌布項目
   String? _selectedFoodItem; // 選中的飼料項目
   
+  // 頭像相關狀態變量
+  String? _selectedAvatarNoBgUrl; // 選中的無背景頭像URL
+  List<Map<String, dynamic>> _avatars = []; // 頭像列表
+  bool _loadingAvatars = false; // 頭像載入狀態
+  DocumentSnapshot? _lastAvatarDoc; // 頭像分頁游標
+  bool _hasMoreAvatars = true; // 是否還有更多頭像
+  
   // 頭像服務監聽器
   late AvatarService _avatarService;
 
   @override
   void initState() {
     super.initState();
+    
+    // 註冊生命週期監聽器
+    WidgetsBinding.instance.addObserver(this);
+    
     petName = widget.initialPetName;
     _loadPetName();
 
@@ -50,46 +61,212 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
     _avatarService = AvatarService();
     _avatarService.addListener(_onAvatarDataChanged);
 
-    // 初始化返回鍵動畫
+    // 初始化動畫控制器
     _backButtonController = AnimationController(
       duration: const Duration(milliseconds: 150),
       vsync: this,
     );
-    _backButtonAnimation = Tween<double>(begin: 1.0, end: 0.8).animate(
-      CurvedAnimation(parent: _backButtonController, curve: Curves.easeInOut),
-    );
+    _backButtonAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(
+      parent: _backButtonController,
+      curve: Curves.easeInOut,
+    ));
 
-    // 初始化背包選單動畫
+    // 初始化背包動畫控制器
     _backpackAnimationController = AnimationController(
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _backpackAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
+    _backpackAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(CurvedAnimation(
         parent: _backpackAnimationController,
         curve: Curves.easeInOut,
-      ),
-    );
+    ));
 
-    // 載入已選擇的特效
+    // 載入頭像列表和已選擇的頭像
+    _loadAvatars();
+    _loadSelectedAvatar();
+    
+    // 載入已選擇的特效 - 確保特效在頁面載入時立即顯示
     _loadSelectedEffect();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    // 當應用重新獲得焦點時，重新載入特效
+    if (state == AppLifecycleState.resumed) {
+      LoggerService.info('應用重新獲得焦點，重新載入特效');
+      _loadSelectedEffect();
+    }
+  }
+
+  @override
+  void dispose() {
+    // 移除生命週期監聽器
+    WidgetsBinding.instance.removeObserver(this);
+    
+    // 移除頭像服務監聽器
+    _avatarService.removeListener(_onAvatarDataChanged);
+    
+    // 釋放動畫控制器
+    _backButtonController.dispose();
+    _backpackAnimationController.dispose();
+    
+    super.dispose();
+  }
+
+  /// 載入頭像列表
+  Future<void> _loadAvatars({int limit = 10}) async {
+    if (!_hasMoreAvatars || _loadingAvatars) return;
+
+    setState(() {
+      _loadingAvatars = true;
+    });
+
+    try {
+      Query query = FirebaseFirestore.instance
+          .collection('avatars')
+          .orderBy('avatar_name')
+          .limit(limit);
+
+      if (_lastAvatarDoc != null) {
+        query = query.startAfterDocument(_lastAvatarDoc!);
+      }
+
+      QuerySnapshot snapshot = await query.get();
+      
+      if (snapshot.docs.isEmpty) {
+        _hasMoreAvatars = false;
+      } else {
+        _lastAvatarDoc = snapshot.docs.last;
+        
+        final newAvatars = snapshot.docs
+            .map((doc) => doc.data() as Map<String, dynamic>)
+            .toList();
+        
+        setState(() {
+          _avatars.addAll(newAvatars);
+        });
+      }
+    } catch (e) {
+      LoggerService.error('載入頭像失敗: $e');
+    } finally {
+      setState(() {
+        _loadingAvatars = false;
+      });
+    }
+  }
+
+  /// 選擇頭像
+  void _selectAvatar(String avatarNoBgUrl) {
+    setState(() {
+      _selectedAvatarNoBgUrl = avatarNoBgUrl;
+    });
+    
+    // 保存選擇的頭像到本地存儲
+    _saveSelectedAvatar(avatarNoBgUrl);
+  }
+
+  /// 選擇頭像項目（用於背包中的頭像卡片）
+  void _selectAvatarItem(Map<String, dynamic> avatarItem) async {
+    await _selectItem(avatarItem, '頭像');
+  }
+
+  /// 保存選擇的頭像
+  Future<void> _saveSelectedAvatar(String avatarNoBgUrl) async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return;
+      
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('selected_avatar_no_bg_$username', avatarNoBgUrl);
+      
+      LoggerService.info('頭像已保存: $avatarNoBgUrl');
+    } catch (e) {
+      LoggerService.error('保存頭像失敗: $e');
+    }
+  }
+
+  /// 載入已選擇的頭像
+  Future<void> _loadSelectedAvatar() async {
+    try {
+      final userData = await UserService.getCurrentUserData();
+      if (userData == null) return;
+      
+      final username = userData['username'] ?? 'default';
+      final prefs = await SharedPreferences.getInstance();
+      final selectedAvatar = prefs.getString('selected_avatar_no_bg_$username');
+      
+      // 添加調試日誌
+      LoggerService.info('載入已選擇頭像 - 用戶: $username, 選擇的頭像URL: $selectedAvatar');
+      
+      // 檢查用戶的頭像狀態
+      final userDoc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userData['uid'])
+          .get();
+      
+      if (userDoc.exists) {
+        final userData = userDoc.data()!;
+        final avatars = Map<String, bool>.from(userData['avatars'] ?? {});
+        LoggerService.info('用戶頭像狀態: $avatars');
+        
+        // 獲取當前等級
+        final experienceData = await ExperienceService.getCurrentExperience();
+        final currentLevel = experienceData['level'] as int;
+        LoggerService.info('當前用戶等級: $currentLevel');
+        
+        // 檢查每個頭像的解鎖狀態
+        for (final entry in avatars.entries) {
+          final avatarId = entry.key;
+          final isUnlocked = entry.value;
+          LoggerService.info('頭像 $avatarId: 是否解鎖=$isUnlocked');
+        }
+      }
+      
+      if (selectedAvatar != null) {
+        setState(() {
+          _selectedAvatarNoBgUrl = selectedAvatar;
+        });
+      }
+    } catch (e) {
+      LoggerService.error('載入已選擇頭像失敗: $e');
+    }
   }
 
   /// 載入已選擇的特效
   Future<void> _loadSelectedEffect() async {
     try {
       final userData = await UserService.getCurrentUserData();
-      if (userData == null) return;
+      if (userData == null) {
+        LoggerService.warning('無法獲取用戶數據，跳過特效載入');
+        return;
+      }
 
       final username = userData['username'] ?? 'default';
       final prefs = await SharedPreferences.getInstance();
       final selectedEffect = prefs.getString('selected_effect_$username');
+      
+      LoggerService.info('載入特效選擇 - 用戶: $username, 已選擇特效: $selectedEffect');
       
       if (selectedEffect != null && selectedEffect.isNotEmpty) {
         setState(() {
           _selectedEffectItem = selectedEffect;
         });
         LoggerService.info('已載入選擇的特效: $selectedEffect');
+      } else {
+        // 初次登入時不設置預設特效，保持為空
+        LoggerService.info('初次登入，不設置預設特效，特效區域保持為空');
+        setState(() {
+          _selectedEffectItem = null;
+        });
       }
     } catch (e) {
       LoggerService.error('載入選擇的特效失敗: $e');
@@ -232,18 +409,6 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
   }
 
   @override
-  void dispose() {
-    // 移除頭像服務監聽器
-    _avatarService.removeListener(_onAvatarDataChanged);
-    
-    // 釋放動畫控制器
-    _backButtonController.dispose();
-    _backpackAnimationController.dispose();
-    
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -251,19 +416,52 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         overlayColor: Colors.white,
         overlayOpacity: 0.3,
         child: SafeArea(
-          child: Column(
+          child: Stack(
             children: [
-              // 頂部狀態欄
-              _buildStatusBar(),
+              Column(
+                children: [
+                  // 頂部狀態欄
+                  _buildStatusBar(),
 
-              // 用戶資料區域
-              _buildUserProfileSection(),
+                  // 用戶資料區域
+                  _buildUserProfileSection(),
 
-              // 中央寵物角色
-              Expanded(child: _buildPetCharacter()),
+                  // 中央寵物角色
+                  Expanded(child: _buildPetCharacter()),
 
-              // 底部背包區域
-              _buildBackpackSection(),
+                  // 底部背包區域
+                  _buildBackpackSection(),
+                ],
+              ),
+              // 頭像覆蓋層 - 與背包選單完全縫合
+              if (_selectedAvatarNoBgUrl != null)
+                Positioned(
+                  right: 0, // 貼齊右邊
+                  bottom: _showBackpack ? 200 : 0, // 根據背包選單狀態調整位置
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    width: 120,
+                    height: 200,
+                    child: Image.network(
+                      _selectedAvatarNoBgUrl!,
+                      fit: BoxFit.contain,
+                      loadingBuilder: (context, child, loadingProgress) {
+                        if (loadingProgress == null) return child;
+                        return Center(
+                          child: CircularProgressIndicator(
+                            value: loadingProgress.expectedTotalBytes != null
+                                ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                                : null,
+                          ),
+                        );
+                      },
+                      errorBuilder: (context, error, stackTrace) =>
+                          const Icon(Icons.broken_image, size: 60, color: Colors.grey),
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -519,11 +717,11 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
   Widget _buildPetCharacter() {
     return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
           
           // 特效影片顯示區域 - 始終顯示這個區域
           _buildEffectVideoSection(),
@@ -533,21 +731,25 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
           if (_isInteracting)
             const CircularProgressIndicator(
               valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
-            ),
-        ],
-      ),
+                  ),
+                ],
+              ),
     );
   }
 
   /// 構建特效影片顯示區域
   Widget _buildEffectVideoSection() {
+    LoggerService.info('構建特效影片區域 - 當前選擇特效: $_selectedEffectItem');
+    
     // 如果沒有選擇特效，返回空容器
     if (_selectedEffectItem == null || _selectedEffectItem!.isEmpty) {
+      LoggerService.warning('沒有選擇特效，返回空容器');
       return const SizedBox.shrink();
     }
 
     // 根據選擇的特效名稱獲取影片路徑
     final videoPath = _getEffectVideoPath(_selectedEffectItem!);
+    LoggerService.info('特效影片路徑: $videoPath');
     
     return Container(
       width: double.infinity,
@@ -555,10 +757,10 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
       padding: const EdgeInsets.symmetric(horizontal: 10), // 減少水平邊距
       margin: const EdgeInsets.only(bottom: 10), // 減少底部邊距
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+                                  borderRadius: BorderRadius.circular(12),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withOpacity(0.2),
@@ -566,12 +768,18 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                 offset: const Offset(0, 4),
               ),
             ],
-          ),
-          child: AssetVideoPlayer(
-            assetPath: videoPath,
-            autoPlay: true,
-            showControls: false, // 移除控制按鈕
-          ),
+                        ),
+                        child: Stack(
+                          children: [
+              // 特效影片
+              AssetVideoPlayer(
+                key: ValueKey(videoPath), // 添加key，確保路徑改變時重建widget
+                assetPath: videoPath,
+                autoPlay: true,
+                showControls: false, // 移除控制按鈕
+                            ),
+                          ],
+                        ),
         ),
       ),
     );
@@ -828,42 +1036,42 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                 constraints: BoxConstraints(
                   maxWidth: MediaQuery.of(context).size.width * 0.9,
                   maxHeight: MediaQuery.of(context).size.height * 0.8,
-                ),
-                child: Container(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                child: Column(
                     mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // 標題
-                      Row(
-                        children: [
-                          Icon(
-                            _getCategoryIcon(category),
-                            color: Colors.blue[600],
-                            size: 24,
-                          ),
-                          const SizedBox(width: 8),
+                  children: [
+                    // 標題
+                    Row(
+                      children: [
+                        Icon(
+                          _getCategoryIcon(category),
+                          color: Colors.blue[600],
+                          size: 24,
+                        ),
+                        const SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              category,
-                              style: const TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
+                          category,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
                           ),
-                          IconButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            icon: const Icon(Icons.close),
+                        ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      // 內容區域
+                        IconButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          icon: const Icon(Icons.close),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    // 內容區域
                       Flexible(
-                        child: _buildCategoryContent(category, setDialogState),
-                      ),
-                    ],
+                      child: _buildCategoryContent(category, setDialogState),
+                    ),
+                  ],
                   ),
                 ),
               ),
@@ -947,7 +1155,8 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
 
         return Column(
           children: [
-            // 顯示未擁有商品選項
+            // 顯示未擁有商品選項（頭像類別不顯示此選項）
+            if (category != '頭像')
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               child: Row(
@@ -1057,11 +1266,12 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                               category != '主題桌布'
                           ? category == '特效'
                               ? _buildEffectVideoWidget(item, isOwned)
-                              : Image.network(
-                                  imageUrl,
-                                  width: double.infinity,
-                                  height: double.infinity,
-                                  fit: BoxFit.cover,
+                              : category == '頭像'
+                          ? Image.network(
+                              imageUrl,
+                              width: double.infinity,
+                              height: double.infinity,
+                                  fit: BoxFit.contain, // 頭像使用 contain 確保完整顯示
                                   color: isOwned ? null : Colors.grey.shade400,
                                   colorBlendMode: isOwned
                                       ? null
@@ -1087,6 +1297,36 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                                     return _buildNoImagePlaceholder();
                                   },
                                 )
+                              : Image.network(
+                                  imageUrl,
+                                  width: double.infinity,
+                                  height: double.infinity,
+                                  fit: BoxFit.cover, // 其他類別使用 cover
+                              color: isOwned ? null : Colors.grey.shade400,
+                              colorBlendMode: isOwned
+                                  ? null
+                                  : BlendMode.saturation,
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Center(
+                                      child: CircularProgressIndicator(
+                                        value:
+                                            loadingProgress
+                                                    .expectedTotalBytes !=
+                                                null
+                                            ? loadingProgress
+                                                      .cumulativeBytesLoaded /
+                                                  loadingProgress
+                                                      .expectedTotalBytes!
+                                            : null,
+                                      ),
+                                    );
+                                  },
+                              errorBuilder: (context, error, stackTrace) {
+                                return _buildNoImagePlaceholder();
+                              },
+                            )
                           : category == '主題桌布'
                           ? _buildThemeBackgroundPlaceholder(item)
                           : _buildNoImagePlaceholder(),
@@ -1280,9 +1520,9 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         return ownedItems;
       }
       
-      // 如果是頭像分類，使用統一用戶資料服務
+      // 如果是頭像分類，使用專門的頭像獲取方法
       if (category == '頭像') {
-        return await UnifiedUserDataService.getUnlockedAvatars();
+        return await _getAllAvatars();
       }
 
       // 使用統一用戶資料服務獲取已擁有的商品
@@ -1529,10 +1769,18 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
         // 保存選擇的頭像
         await prefs.setString('selected_avatar_$username', itemName);
         await prefs.setString('selected_avatar_image_$username', itemImageUrl);
+        
+        // 保存無背景頭像URL
+        final avatarNoBgUrl = item['avatar_no_bg'] ?? item['無背景'] ?? '';
+        if (avatarNoBgUrl.isNotEmpty) {
+          await prefs.setString('selected_avatar_no_bg_$username', avatarNoBgUrl);
+          LoggerService.info('保存無背景頭像URL: $avatarNoBgUrl');
+        }
 
         // 更新選中狀態
         setState(() {
           _selectedAvatarItem = itemName;
+          _selectedAvatarNoBgUrl = avatarNoBgUrl.isNotEmpty ? avatarNoBgUrl : null;
         });
 
         if (mounted) {
@@ -1626,16 +1874,16 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
             constraints: BoxConstraints(
               maxWidth: MediaQuery.of(context).size.width * 0.85,
               maxHeight: MediaQuery.of(context).size.height * 0.7,
-            ),
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // 成功圖標
-                  Container(
-                    width: 60,
-                    height: 60,
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 成功圖標
+                Container(
+                  width: 60,
+                  height: 60,
                   decoration: BoxDecoration(
                     color: Colors.green.shade100,
                     shape: BoxShape.circle,
@@ -1673,19 +1921,19 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                       child: category == '特效'
                           ? _buildEffectPreviewWidget(itemName)
                           : Image.network(
-                              itemImageUrl,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Container(
-                                  color: Colors.grey.shade200,
-                                  child: Icon(
-                                    _getCategoryIcon(category),
-                                    color: Colors.grey.shade400,
-                                    size: 32,
-                                  ),
-                                );
-                              },
+                        itemImageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            color: Colors.grey.shade200,
+                            child: Icon(
+                              _getCategoryIcon(category),
+                              color: Colors.grey.shade400,
+                              size: 32,
                             ),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 const SizedBox(height: 12),
@@ -1727,8 +1975,8 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
                 ),
               ],
             ),
+            ),
           ),
-        ),
         );
       },
     );
@@ -2017,6 +2265,255 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 獲取所有頭像
+  Future<List<Map<String, dynamic>>> _getAllAvatars() async {
+    try {
+      // 使用統一用戶資料服務獲取已解鎖的頭像
+      final unlockedAvatars = await UnifiedUserDataService.getUnlockedAvatars();
+      
+      final List<Map<String, dynamic>> avatarItems = [];
+
+      for (final avatar in unlockedAvatars) {
+        final avatarId = avatar['id'] ?? '';
+        final avatarName = avatar['name'] ?? '未命名頭像';
+        final imageUrl = avatar['imageUrl'] ?? avatar['圖片'] ?? '';
+        final avatarNoBgUrl = avatar['avatar_no_bg'] ?? avatar['無背景'] ?? '';
+
+        avatarItems.add({
+          'id': avatarId,
+          'name': avatarName,
+          '圖片': imageUrl,
+          'imageUrl': imageUrl,
+          'avatar_no_bg': avatarNoBgUrl,
+          'category': '頭像',
+          'status': '已擁有', // 頭像都是已擁有的
+          'description': avatar['description'] ?? '',
+          'price': 0, // 頭像不需要價格
+          'isFree': true, // 頭像都是免費的
+        });
+
+        LoggerService.debug(
+          '已解鎖頭像資料 - ID: $avatarId, 名稱: $avatarName, 圖片: $imageUrl, 無背景: $avatarNoBgUrl',
+        );
+      }
+
+      // 排序：按名稱排序
+      avatarItems.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+
+      LoggerService.info('獲取到 ${avatarItems.length} 個已擁有的頭像');
+      return avatarItems;
+    } catch (e) {
+      LoggerService.error('獲取頭像失敗: $e');
+      return [];
+    }
+  }
+}
+
+/// 頭像選擇器組件
+class AvatarSelector extends StatefulWidget {
+  final Function(String) onSelectNoBg;
+  final List<Map<String, dynamic>> avatars;
+  final bool loading;
+  final VoidCallback onLoadMore;
+  
+  const AvatarSelector({
+    required this.onSelectNoBg,
+    required this.avatars,
+    required this.loading,
+    required this.onLoadMore,
+    super.key,
+  });
+
+  @override
+  State<AvatarSelector> createState() => _AvatarSelectorState();
+}
+
+class _AvatarSelectorState extends State<AvatarSelector> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      widget.onLoadMore();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 300,
+      child: Column(
+        children: [
+          // 標題
+          Container(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(Icons.account_circle, color: Colors.teal),
+                const SizedBox(width: 8),
+                Text(
+                  '選擇頭像',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.teal,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // 頭像列表
+          Expanded(
+            child: widget.avatars.isEmpty && !widget.loading
+                ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.account_circle_outlined,
+                          size: 64,
+                          color: Colors.grey.shade400,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          '暫無頭像',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  )
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: widget.avatars.length + (widget.loading ? 1 : 0),
+                    itemBuilder: (context, index) {
+                      if (index == widget.avatars.length) {
+                        // 載入更多指示器
+                        return Container(
+                          padding: const EdgeInsets.all(16),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.teal),
+                            ),
+                          ),
+                        );
+                      }
+
+                      final avatar = widget.avatars[index];
+                      final avatarNoBgUrl = avatar['avatar_no_bg'] ?? '';
+                      final avatarWithBgUrl = avatar['avatar_with_bg'] ?? '';
+                      final avatarName = avatar['avatar_name'] ?? '未命名頭像';
+
+                      return GestureDetector(
+                        onTap: () {
+                          if (avatarNoBgUrl.isNotEmpty) {
+                            widget.onSelectNoBg(avatarNoBgUrl);
+                            Navigator.pop(context);
+                          }
+                        },
+                        child: Container(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(12),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 4,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Row(
+                            children: [
+                              // 頭像圖片
+                              Container(
+                                width: 60,
+                                height: 60,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(30),
+                                  border: Border.all(
+                                    color: Colors.grey.shade300,
+                                    width: 2,
+                                  ),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(28),
+                                  child: Image.network(
+                                    avatarWithBgUrl.isNotEmpty 
+                                        ? avatarWithBgUrl 
+                                        : avatarNoBgUrl,
+                                    width: 60,
+                                    height: 60,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 60,
+                                        height: 60,
+                                        decoration: BoxDecoration(
+                                          color: Colors.grey.shade200,
+                                          borderRadius: BorderRadius.circular(28),
+                                        ),
+                                        child: Icon(
+                                          Icons.person,
+                                          size: 30,
+                                          color: Colors.grey.shade600,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                              
+                              const SizedBox(width: 12),
+                              
+                              // 頭像名稱
+                              Expanded(
+                                child: Text(
+                                  avatarName,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w500,
+                                    color: Colors.black87,
+                                  ),
+                                ),
+                              ),
+                              
+                              // 選擇指示器
+                              Icon(
+                                Icons.arrow_forward_ios,
+                                size: 16,
+                                color: Colors.grey.shade400,
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
       ),
     );
   }

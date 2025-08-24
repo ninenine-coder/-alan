@@ -54,6 +54,16 @@ class _AssetVideoPlayerState extends State<AssetVideoPlayer> {
 
       // 初始化播放器
       final controller = VideoPlayerController.file(tempFile);
+      
+      // 添加監聽器來追蹤播放狀態
+      controller.addListener(() {
+        if (mounted) {
+          setState(() {
+            // 觸發重建以更新播放狀態
+          });
+        }
+      });
+      
       await controller.initialize();
 
       if (mounted) {
@@ -197,14 +207,25 @@ class _AssetVideoPlayerState extends State<AssetVideoPlayer> {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.black,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
-        child: VideoPlayer(_controller!),
+    return GestureDetector(
+      onTap: () {
+        // 如果影片播放完畢，重新播放
+        if (_controller!.value.position >= _controller!.value.duration) {
+          _restart();
+        } else {
+          // 否則切換播放/暫停
+          _togglePlayPause();
+        }
+      },
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.black,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: VideoPlayer(_controller!),
+        ),
       ),
     );
   }
