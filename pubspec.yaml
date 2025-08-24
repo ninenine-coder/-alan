@@ -33,6 +33,8 @@ dependencies:
   http: ^1.2.1
   flutter_markdown: ^0.7.7+1
   url_launcher: ^6.3.0
+  flutter_html: ^3.0.0-beta.2
+  markdown: ^7.2.1   # 用來把 Markdown 轉成 HTML
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

@@ -26,8 +26,10 @@ import 'theme_background_widget.dart';
 import 'api_service.dart';
 import 'api_models.dart' as api;
 
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_html/flutter_html.dart';
+import 'package:flutter_markdown/flutter_markdown.dart' as fmd;
 import 'package:url_launcher/url_launcher_string.dart';
+import 'package:markdown/markdown.dart' as md;
 
 class ChatPage extends StatefulWidget {
   const ChatPage({super.key});
@@ -44,6 +46,45 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
   final ApiService _api = ApiService();
   bool _isTyping = false;
   bool _showMenu = false;
+
+  static const int _historyLimit = 5;
+  DateTime? _historyResetAt; // 按下「清除」後，只取這之後的訊息
+
+  bool _looksLikeHtml(String s) {
+    final t = s.trim();
+    return RegExp(r'</?[a-z][\s\S]*?>', caseSensitive: false).hasMatch(t);
+  }
+
+  List<api.ChatMessage> _buildApiHistory({int? maxItems}) {
+    final cutoff = _historyResetAt;
+    final filtered = _messages.where((m) {
+      if (m.imagePath != null) return false;
+      if (m.text.trim().isEmpty) return false;
+      if (cutoff != null && m.time.isBefore(cutoff)) return false;
+      return true;
+    }).toList();
+
+    final limit = maxItems ?? _historyLimit;
+    final tail = filtered.length > limit
+        ? filtered.sublist(filtered.length - limit)
+        : filtered;
+
+    return tail
+        .map(
+          (m) => api.ChatMessage(
+            role: m.isUser ? 'user' : 'assistant',
+            content: m.text,
+          ),
+        )
+        .toList();
+  }
+
+  void _clearApiHistoryOnly() {
+    setState(() {
+      _historyResetAt = DateTime.now(); // 從現在起算，舊訊息不再帶去 API
+    });
+    _showWarningSnackBar('已清除 AI 上下文（僅影響發送到後端的歷史）');
+  }
 
   String _aiName = '捷米';
   final GlobalKey<CoinDisplayState> _coinDisplayKey =
@@ -397,16 +438,8 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         }
       }
 
-      // ★★★ 把目前對話轉成 API chat_history 格式
-      final history = _messages
-          .where((m) => m.imagePath == null && m.text.trim().isNotEmpty)
-          .map(
-            (m) => api.ChatMessage(
-              role: m.isUser ? 'user' : 'assistant',
-              content: m.text,
-            ),
-          )
-          .toList();
+      // ★★★ 把目前對話轉成 API chat_history 格式（只保留最後 _historyLimit 則）
+      final history = _buildApiHistory(); // 會自動過濾 & 只取最後 N 則
 
       final req = api.ChatRequest(
         message: text,
@@ -551,6 +584,29 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     await prefs.setString(aiNameKey, name);
   }
 
+  Future<void> _confirmClearChat() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('清除聊天紀錄'),
+        content: const Text('這會刪除本機已儲存的所有聊天訊息，確定要清除嗎？'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('取消'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('清除'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true) {
+      _clearApiHistoryOnly();
+    }
+  }
+
   Widget _buildAnimatedBackground() {
     return AnimatedBuilder(
       animation: _backgroundAnimation,
@@ -583,16 +639,20 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildMarkdown(String md) {
-    return MarkdownBody(
-      data: md,
-      selectable: true, // 允許長按選字/複製
+  Widget _buildMarkdown(String mdText) {
+    return fmd.MarkdownBody(
+      data: mdText,
+      selectable: true,
       onTapLink: (text, href, title) {
         if (href != null) {
           launchUrlString(href, mode: LaunchMode.externalApplication);
         }
       },
-      styleSheet: MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
+      // ★ 關鍵：先解析 Markdown，並在解析過程插入 <metro> 節點
+      inlineSyntaxes: [MetroLineSyntax()],
+      builders: {'metro': MetroLineBuilder()},
+
+      styleSheet: fmd.MarkdownStyleSheet.fromTheme(Theme.of(context)).copyWith(
         p: const TextStyle(fontSize: 16, color: Colors.black87),
         code: const TextStyle(fontSize: 14, fontFamily: 'monospace'),
         codeblockDecoration: BoxDecoration(
@@ -605,12 +665,61 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
         ),
         a: const TextStyle(decoration: TextDecoration.underline),
       ),
+
       imageBuilder: (uri, title, alt) => ClipRRect(
         borderRadius: BorderRadius.circular(8),
         child: Image.network(
           uri.toString(),
           errorBuilder: (_, __, ___) => const Icon(Icons.broken_image),
         ),
+      ),
+    );
+  }
+
+  Widget _buildAssistantContent(String text) {
+    if (_looksLikeHtml(text)) {
+      // 後端回 HTML 時的後備顯示（保留簡單 style，避免 v3 不支援的屬性）
+      return Html(
+        data: text,
+        onAnchorTap: (url, attrs, element) {
+          if (url != null) {
+            launchUrlString(url, mode: LaunchMode.externalApplication);
+          }
+        },
+        style: {
+          "html": Style(fontSize: FontSize(16), color: Colors.black87),
+          "p": Style(fontSize: FontSize(16), color: Colors.black87),
+          "a": Style(
+            textDecoration: TextDecoration.underline,
+            color: Colors.blue,
+          ),
+        },
+      );
+    }
+    // 預設：Markdown -> 自訂節點 -> 上色
+    return _buildMarkdown(text);
+  }
+
+  Widget _buildFooterBar() {
+    // 你希望不管有沒有在思考，都看到清除按鈕；有在思考就顯示左邊的 chip
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          if (_isTyping) _buildTypingIndicator(),
+          const Spacer(),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.delete_outline, size: 18),
+            label: const Text('清除聊天'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red.shade700,
+              side: BorderSide(color: Colors.red.shade300),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: const StadiumBorder(),
+            ),
+            onPressed: _confirmClearChat, // 下面第 3 點有 bug 修正
+          ),
+        ],
       ),
     );
   }
@@ -761,12 +870,12 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                       : (message.isUser
                             ? Text(
                                 message.text,
-                                style: TextStyle(
+                                style: const TextStyle(
                                   color: Colors.white,
                                   fontSize: 16,
                                 ),
                               )
-                            : _buildMarkdown(message.text)),
+                            : _buildAssistantContent(message.text)),
                 ),
                 const SizedBox(height: 6),
                 Container(
@@ -1675,7 +1784,7 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
                   ),
                 ),
 
-                if (_isTyping) _buildTypingIndicator(),
+                _buildFooterBar(),
 
                 _buildInputArea(),
               ],
@@ -1715,4 +1824,42 @@ class BackgroundPatternPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
+// 偵測文字中的捷運線名，產生 <metro> 節點
+class MetroLineSyntax extends md.InlineSyntax {
+  MetroLineSyntax() : super(r'(文湖線|淡水信義線|松山新店線|中和新蘆線|板南線|環狀線)');
+
+  @override
+  bool onMatch(md.InlineParser parser, Match match) {
+    final el = md.Element.text('metro', match.group(0)!);
+    el.attributes['line'] = match.group(0)!;
+    parser.addNode(el);
+    return true;
+  }
+}
+
+// 把 <metro> 節點渲染成帶顏色的文字
+class MetroLineBuilder extends fmd.MarkdownElementBuilder {
+  static const Map<String, Color> _colors = {
+    '文湖線': Color(0xFFC48A31),
+    '淡水信義線': Color(0xFFE3002C),
+    '松山新店線': Color(0xFF00885A),
+    '中和新蘆線': Color(0xFFF8B61C),
+    '板南線': Color(0xFF0070BD),
+    '環狀線': Color(0xFFFFD300),
+  };
+
+  @override
+  Widget? visitElementAfter(md.Element element, TextStyle? preferredStyle) {
+    final line = element.attributes['line'] ?? element.textContent;
+    final color = _colors[line] ?? Colors.black87;
+    return Text(
+      line,
+      style: (preferredStyle ?? const TextStyle()).copyWith(
+        color: color,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
 }

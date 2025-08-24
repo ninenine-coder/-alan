@@ -15,7 +15,7 @@ class _RegisterPageState extends State<RegisterPage> {
   final _confirmPasswordController = TextEditingController();
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
-  
+
   bool _isLoading = false;
   bool _obscurePassword = true;
   bool _obscureConfirmPassword = true;
@@ -38,7 +38,10 @@ class _RegisterPageState extends State<RegisterPage> {
     final phone = _phoneController.text.trim();
 
     // 驗證輸入
-    if (username.isEmpty || password.isEmpty || email.isEmpty || phone.isEmpty) {
+    if (username.isEmpty ||
+        password.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty) {
       _showDialog('請完整填寫所有欄位');
       return;
     }
@@ -60,17 +63,15 @@ class _RegisterPageState extends State<RegisterPage> {
 
     if (!mounted) return;
 
-    setState(() { 
-      _isLoading = true; 
+    setState(() {
+      _isLoading = true;
     });
 
     try {
       // 使用 Firebase Auth 創建用戶帳號
-      UserCredential userCredential = await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
-        password: password,
-      );
-      
+      UserCredential userCredential = await FirebaseAuth.instance
+          .createUserWithEmailAndPassword(email: email, password: password);
+
       // 註冊成功，將用戶資料上傳到 Firestore
       final user = userCredential.user;
       if (user != null) {
@@ -87,29 +88,26 @@ class _RegisterPageState extends State<RegisterPage> {
           'purchasedItems': [],
           'earnedMedals': [],
         };
-        
+
         // 將資料上傳到 Firestore
         await FirebaseFirestore.instance
             .collection('users')
             .doc(user.uid)
             .set(userData);
-        
+
         // User registered successfully
-        
+
         if (!mounted) return;
-        
-        setState(() { 
-          _isLoading = false; 
+
+        setState(() {
+          _isLoading = false;
         });
-        
+
         // 顯示成功訊息
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('註冊成功！'),
-            backgroundColor: Colors.green,
-          ),
+          const SnackBar(content: Text('註冊成功！'), backgroundColor: Colors.green),
         );
-        
+
         // 返回登入頁面
         Navigator.pop(context, true);
       } else {
@@ -129,8 +127,8 @@ class _RegisterPageState extends State<RegisterPage> {
       _showDialog('註冊時發生錯誤: $e');
     } finally {
       if (mounted) {
-        setState(() { 
-          _isLoading = false; 
+        setState(() {
+          _isLoading = false;
         });
       }
     }
@@ -138,7 +136,7 @@ class _RegisterPageState extends State<RegisterPage> {
 
   void _showDialog(String msg) {
     if (!mounted) return;
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -148,7 +146,7 @@ class _RegisterPageState extends State<RegisterPage> {
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('確定'),
-          )
+          ),
         ],
       ),
     );
@@ -193,62 +191,59 @@ class _RegisterPageState extends State<RegisterPage> {
                 const SizedBox(height: 8),
                 Text(
                   '請填寫以下資訊完成註冊',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
 
-                                 // 用戶名輸入框
-                 TextField(
-                   controller: _usernameController,
-                   decoration: InputDecoration(
-                     labelText: '用戶名',
-                     hintText: '請輸入用戶名',
-                     prefixIcon: const Icon(Icons.person),
-                     border: OutlineInputBorder(
-                       borderRadius: BorderRadius.circular(12),
-                     ),
-                     filled: true,
-                     fillColor: Colors.white.withValues(alpha: 0.8),
-                   ),
-                 ),
+                // 用戶名輸入框
+                TextField(
+                  controller: _usernameController,
+                  decoration: InputDecoration(
+                    labelText: '用戶名',
+                    hintText: '請輸入用戶名',
+                    prefixIcon: const Icon(Icons.person),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
                 const SizedBox(height: 16),
 
-                                 // 電子郵件輸入框
-                 TextField(
-                   controller: _emailController,
-                   keyboardType: TextInputType.emailAddress,
-                   decoration: InputDecoration(
-                     labelText: '電子郵件',
-                     hintText: '請輸入電子郵件',
-                     prefixIcon: const Icon(Icons.email),
-                     border: OutlineInputBorder(
-                       borderRadius: BorderRadius.circular(12),
-                     ),
-                     filled: true,
-                     fillColor: Colors.white.withValues(alpha: 0.8),
-                   ),
-                 ),
+                // 電子郵件輸入框
+                TextField(
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: InputDecoration(
+                    labelText: '電子郵件',
+                    hintText: '請輸入電子郵件',
+                    prefixIcon: const Icon(Icons.email),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
                 const SizedBox(height: 16),
 
-                                 // 手機號碼輸入框
-                 TextField(
-                   controller: _phoneController,
-                   keyboardType: TextInputType.phone,
-                   decoration: InputDecoration(
-                     labelText: '手機號碼',
-                     hintText: '請輸入手機號碼',
-                     prefixIcon: const Icon(Icons.phone),
-                     border: OutlineInputBorder(
-                       borderRadius: BorderRadius.circular(12),
-                     ),
-                     filled: true,
-                     fillColor: Colors.white.withValues(alpha: 0.8),
-                   ),
-                 ),
+                // 手機號碼輸入框
+                TextField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    labelText: '手機號碼',
+                    hintText: '請輸入手機號碼',
+                    prefixIcon: const Icon(Icons.phone),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    filled: true,
+                    fillColor: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
                 const SizedBox(height: 16),
 
                 // 密碼輸入框
@@ -261,7 +256,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                        _obscurePassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
                       onPressed: () {
                         setState(() {
@@ -288,7 +285,9 @@ class _RegisterPageState extends State<RegisterPage> {
                     prefixIcon: const Icon(Icons.lock_outline),
                     suffixIcon: IconButton(
                       icon: Icon(
-                        _obscureConfirmPassword ? Icons.visibility : Icons.visibility_off,
+                        _obscureConfirmPassword
+                            ? Icons.visibility_off
+                            : Icons.visibility,
                       ),
                       onPressed: () {
                         setState(() {
@@ -324,7 +323,9 @@ class _RegisterPageState extends State<RegisterPage> {
                             height: 20,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Colors.white,
+                              ),
                             ),
                           )
                         : const Text(
@@ -344,9 +345,7 @@ class _RegisterPageState extends State<RegisterPage> {
                   children: [
                     Text(
                       '已有帳號？',
-                      style: TextStyle(
-                        color: Colors.grey.shade600,
-                      ),
+                      style: TextStyle(color: Colors.grey.shade600),
                     ),
                     TextButton(
                       onPressed: () => Navigator.pop(context),
