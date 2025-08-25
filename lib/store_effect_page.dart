@@ -1,11 +1,10 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:video_player/video_player.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'effect_model.dart';
 import 'logger_service.dart';
-
+import 'video_player_page.dart';
 class StoreEffectPage extends StatefulWidget {
   const StoreEffectPage({super.key});
 
