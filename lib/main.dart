@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:webview_flutter/webview_flutter.dart';
@@ -16,17 +15,8 @@ import 'experience_sync_service.dart';
 import 'store_page.dart';
 import 'test_food_data.dart';
 import 'metro_quiz_page.dart';
-
-
-// 為了處理 SSL 驗證問題 (相當於 Python 的 verify=False)
-class _MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback =
-          (X509Certificate cert, String host, int port) => true;
-  }
-}
+import 'http_overrides_stub.dart'
+    if (dart.library.io) 'http_overrides_io.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -36,7 +26,7 @@ Future<void> main() async {
     WebView.platform = WebWebViewPlatform();
   } else {
     // 【重要】在 App 啟動前，設定全域的 HTTP client 規則來忽略憑證錯誤
-    HttpOverrides.global = _MyHttpOverrides();
+    setupHttpOverrides();
   }
 
   // 初始化 logger

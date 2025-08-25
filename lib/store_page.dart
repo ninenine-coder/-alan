@@ -12,6 +12,7 @@ import 'asset_video_player.dart';
 import 'food_service.dart';
 import 'purchase_count_service.dart';
 import 'user_purchase_service.dart';
+import 'metro_quiz_page.dart';
 
 class StorePage extends StatefulWidget {
   final String? initialCategory;
@@ -1402,6 +1403,16 @@ class _StorePageState extends State<StorePage> with TickerProviderStateMixin {
                               ),
                               textAlign: TextAlign.center,
                             ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.quiz, color: Colors.blue),
+                            onPressed: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const MetroQuizPage(),
+                                ),
+                              );
+                            },
                           ),
                           CoinDisplay(key: _coinDisplayKey),
                           const SizedBox(width: 12),
