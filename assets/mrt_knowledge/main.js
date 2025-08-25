@@ -1,11 +1,14 @@
-// 讀取從 Flutter 注入的 API Base；若沒有，就用平台預設值
 (function () {
+  function getQueryParam(k) {
+    try { return new URLSearchParams(window.location.search).get(k); }
+    catch { return null; }
+  }
   function platformDefault() {
     const ua = navigator.userAgent || '';
     if (/Android/i.test(ua)) return 'http://10.0.2.2:5000';
     return 'http://127.0.0.1:5000';
   }
-  window.API_BASE = window.FLUTTER_API_BASE || platformDefault();
+  window.API_BASE = getQueryParam('apiBase') || window.FLUTTER_API_BASE || platformDefault();
 })();
 
 document.addEventListener('DOMContentLoaded', () => {

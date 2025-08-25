@@ -46,7 +46,7 @@ dependencies:
   firebase_storage: ^13.0.0
   firebase_database: ^12.0.0
   cloud_firestore: ^6.0.0
-  webview_flutter: ^4.2.1
+  webview_flutter: ^4.7.0
   video_player: ^2.8.2
   video_thumbnail: ^0.5.3
   webview_flutter_web: ^0.2.2

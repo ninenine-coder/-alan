@@ -22,7 +22,7 @@ import 'metro_quiz_page.dart';
 import 'feature_unlock_service.dart';
 import 'welcome_coin_service.dart';
 import 'avatar_service.dart';
-
+import 'metro_quiz_page.dart'; // 只能這個！
 import 'theme_background_widget.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
