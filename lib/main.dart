@@ -1,5 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+import 'package:webview_flutter/webview_flutter.dart';
+import 'package:webview_flutter_web/webview_flutter_web.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
@@ -28,8 +31,13 @@ class _MyHttpOverrides extends HttpOverrides {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 【重要】在 App 啟動前，設定全域的 HTTP client 規則來忽略憑證錯誤
-  HttpOverrides.global = _MyHttpOverrides();
+  // Web 平台需先設定對應的 WebView 實作
+  if (kIsWeb) {
+    WebView.platform = WebWebViewPlatform();
+  } else {
+    // 【重要】在 App 啟動前，設定全域的 HTTP client 規則來忽略憑證錯誤
+    HttpOverrides.global = _MyHttpOverrides();
+  }
 
   // 初始化 logger
   LoggerService.initialize();
