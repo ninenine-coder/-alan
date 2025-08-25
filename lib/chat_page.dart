@@ -1348,10 +1348,11 @@ class _ChatPageState extends State<ChatPage> with TickerProviderStateMixin {
 
   void _navigateToMetroQuizPage() {
     if (!mounted) return;
-    _safeNavigate(() => MetroQuizPage(htmlString: _metroQuizHtml)).then((_) {
+    Navigator.push(context,
+    MaterialPageRoute(builder: (_) => const MetroQuizPage())); {
       if (!mounted) return;
       _coinDisplayKey.currentState?.refreshCoins();
-    });
+    };
   }
 
   Future<T?> _safeNavigate<T>(Widget Function() pageBuilder) async {

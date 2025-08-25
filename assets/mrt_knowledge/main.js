@@ -1,3 +1,13 @@
+// 讀取從 Flutter 注入的 API Base；若沒有，就用平台預設值
+(function () {
+  function platformDefault() {
+    const ua = navigator.userAgent || '';
+    if (/Android/i.test(ua)) return 'http://10.0.2.2:5000';
+    return 'http://127.0.0.1:5000';
+  }
+  window.API_BASE = window.FLUTTER_API_BASE || platformDefault();
+})();
+
 document.addEventListener('DOMContentLoaded', () => {
     // --- DOM 元素獲取 ---
     const startScreen = document.getElementById('start-screen');
