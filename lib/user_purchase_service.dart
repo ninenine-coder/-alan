@@ -105,12 +105,16 @@ class UserPurchaseService {
           .doc(user.uid)
           .snapshots()
           .map((doc) {
+        LoggerService.info('Firebase 文檔更新事件觸發，文檔存在: ${doc.exists}');
+        
         if (!doc.exists) {
           LoggerService.info('用戶文檔不存在，返回空購買記錄');
           return {};
         }
         
         final userData = doc.data() as Map<String, dynamic>;
+        LoggerService.info('用戶文檔數據: $userData');
+        
         final purchaseCounts = Map<String, int>.from(userData['purchaseCounts'] ?? {});
         
         LoggerService.info('收到購買記錄更新: $purchaseCounts');

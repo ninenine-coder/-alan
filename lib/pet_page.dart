@@ -1650,6 +1650,7 @@ class _PetPageState extends State<PetPage> with TickerProviderStateMixin, Widget
                               final purchaseCount = snapshot.hasData ? snapshot.data![itemId] ?? 0 : 0;
                               
                               // 添加調試日誌
+                              LoggerService.info('StreamBuilder 更新 - 商品ID: $itemId, 商品名稱: ${item['name']}, 購買數量: $purchaseCount, 有數據: ${snapshot.hasData}, 錯誤: ${snapshot.hasError}');
                               if (snapshot.hasData) {
                                 LoggerService.info('商品 $itemId 的購買數量: $purchaseCount, 完整數據: ${snapshot.data}');
                               }
