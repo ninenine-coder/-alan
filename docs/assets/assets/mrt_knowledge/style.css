@@ -1,0 +1,224 @@
+/* style.css */
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap');
+
+body {
+    font-family: 'Noto Sans TC', sans-serif; /* 更新字體 */
+    background: linear-gradient(135deg, #4c1d95, #7c3aed); /* 深紫色漸變背景 */
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+}
+
+/* 主遊戲容器的樣式 */
+.main-container {
+    background-color: rgba(255, 255, 255, 0.9); /* 半透明白色背景 */
+    backdrop-filter: blur(8px); /* 模糊效果 */
+    border-radius: 2rem; /* 更大的圓角 */
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1); /* 陰影 */
+    max-width: 500px; /* 最大寬度 */
+    width: 100%;
+    overflow: hidden;
+    position: relative;
+    /* 捷運路線圖作為背景，半透明疊加 */
+    background-image: linear-gradient(rgba(255,255,255,0.9), rgba(255,255,255,0.95)), url('https://upload.wikimedia.org/wikipedia/commons/2/26/Taipei_Metro_Route_Map_2023.png');
+    background-size: cover;
+    background-position: center;
+    min-height: 600px; /* 確保有足夠高度 */
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+/* 按鈕基礎樣式 */
+.btn-primary {
+    background-color: #8b5cf6; /* 紫色 */
+    color: white;
+    font-weight: 700;
+    border-radius: 1rem; /* 圓角 */
+    padding: 1rem 2rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.btn-primary:hover {
+    background-color: #7c3aed; /* 懸停時顏色變深 */
+    transform: translateY(-3px) scale(1.05); /* 懸停時上浮並放大 */
+    box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);
+}
+
+/* 選項按鈕樣式 */
+.option-btn {
+    background-color: #f3f4f6;
+    color: #374151;
+    border: 2px solid #e5e7eb;
+    transition: all 0.2s ease;
+    text-align: left;
+    padding: 1rem;
+    border-radius: 0.75rem; /* 圓角 */
+    font-weight: 500;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.option-btn:not([disabled]):hover {
+    border-color: #8b5cf6; /* 懸停時邊框變色 */
+    background-color: #ede9fe; /* 懸停時背景變淺 */
+}
+
+.option-btn:disabled {
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
+/* 正確答案樣式 */
+.option-btn.correct {
+    background-color: #10b981 !important; /* Tailwind green-500 */
+    color: white !important;
+    border-color: #059669 !important; /* Tailwind green-700 */
+    transform: scale(1.05);
+    animation: pulse-correct 0.5s;
+}
+
+/* 錯誤答案樣式 */
+.option-btn.incorrect {
+    background-color: #ef4444 !important; /* Tailwind red-500 */
+    color: white !important;
+    border-color: #dc2626 !important; /* Tailwind red-700 */
+    animation: shake 0.5s;
+}
+
+/* 進度條樣式 */
+.timer-bar-inner {
+    transition: width 0.2s linear; /* 平滑過渡 */
+    background: linear-gradient(90deg, #22c55e, #a3e635); /* 綠色漸變 */
+}
+
+/* 動畫 */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.animate-fadeIn { animation: fadeIn 0.5s ease-out forwards; }
+
+@keyframes pulse-correct {
+    0% { transform: scale(1.05); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1.05); }
+}
+
+@keyframes shake {
+    10%, 90% { transform: translateX(-2px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+}
+
+/* 連擊顯示樣式 */
+#combo-display {
+    position: fixed; /* 固定在視窗中 */
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 4rem;
+    font-weight: 900;
+    color: #f59e0b; /* 琥珀色 */
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+    pointer-events: none; /* 允許點擊穿透 */
+    opacity: 0;
+    transition: all 0.5s ease;
+    z-index: 100; /* 確保在最上層 */
+    white-space: nowrap; /* 防止換行 */
+}
+
+#combo-display.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.5); /* 顯示時放大 */
+}
+
+/* 模態視窗關閉按鈕 */
+.modal-close-btn {
+    font-size: 2.5rem;
+    line-height: 1;
+    font-weight: bold;
+    cursor: pointer;
+    background: none;
+    border: none;
+    color: #a0aec0; /* 淺灰色 */
+    transition: color 0.2s ease;
+}
+
+.modal-close-btn:hover {
+    color: #4a5568; /* 深灰色 */
+}
+
+/* 捷運列車動畫 */
+@keyframes train-move {
+    0% { left: -15%; } /* 從左邊外側開始 */
+    100% { left: 115%; } /* 移動到右邊外側 */
+}
+
+.train-animation-container {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 30px; /* 火車軌道高度 */
+    overflow: hidden;
+    pointer-events: none; /* 允許點擊穿透 */
+    z-index: 10;
+}
+
+.train-animation-container svg {
+    position: absolute;
+    bottom: 5px; /* 調整火車位置 */
+    left: -15%; /* 初始位置 */
+    width: 80px; /* 火車寬度 */
+    height: auto;
+    animation: train-move 15s linear infinite; /* 火車移動動畫 */
+    z-index: 10;
+    opacity: 0.6; /* 半透明 */
+}
+
+/* 排行榜模態視窗列表項高亮 */
+#leaderboard-list li {
+    transition: all 0.2s ease;
+}
+
+#leaderboard-list li.bg-amber-100 {
+    background-color: #fffbeb; /* 淺黃色背景 */
+    border: 1px solid #fcd34d; /* 黃色邊框 */
+    box-shadow: 0 2px 8px rgba(252, 211, 77, 0.4);
+}
+
+#leaderboard-list li span.text-amber-500 {
+    color: #f59e0b; /* 琥珀色文字 */
+}
+
+/* 響應式調整 */
+@media (max-width: 640px) {
+    .main-container {
+        padding: 1rem;
+        border-radius: 0; /* 手機上移除圓角，全螢幕顯示 */
+        height: 100vh;
+        max-height: unset;
+    }
+    .btn-primary {
+        font-size: 1.25rem;
+        padding: 0.8rem 1.5rem;
+    }
+    .option-btn {
+        font-size: 1rem;
+        padding: 1rem;
+    }
+    #question-text {
+        font-size: 1.5rem;
+    }
+    #combo-display {
+        font-size: 3rem;
+    }
+    .train-animation-container svg {
+        width: 60px; /* 手機上火車小一點 */
+        animation-duration: 10s; /* 手機上火車跑快一點 */
+    }
+}
